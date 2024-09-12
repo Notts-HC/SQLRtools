@@ -1,0 +1,251 @@
+---
+output: github_document
+---
+
+```{r, echo = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.path = "tools/README-"
+)
+
+```
+
+# SQL R Tools
+
+![](https://img.shields.io/badge/lifecycle-Stable-green.svg)
+
+The aim of this package is to provide functionality to support working with 
+MSSQL and MYSQL databases from R.
+
+The package currently contains one R6 class object that is used to connect with
+a given SQL database and provides several methods for interacting with the 
+database, including:
+
+* **close_connection**: close the connection to the server, note that other
+methods will do this by default. 
+* **get**: run SQL query on the server and return results to R environment. 
+* **run**: run SQL query on the server without returning results to R
+environment, e.g. if inserting data into another table/creating temp tables etc. 
+* **table_exists**: check if a table exists in a database. 
+* **upload**: upload data to a database, with options to batch upload. 
+* **drop_table**: drop table in a database.
+* **databases**: list databases in a server.
+* **db_tables**: list tables in a database.
+* **db_views**: list views in a database.
+* **temp_table_name**: get the full name of a temporary table. 
+* **object_fields**: get list of fields from a table/view.
+* **order_object_fields**: lists the fields in a table/view and order by data
+type, with varchar(max) and geometry fields at the end (i.e. useful for 
+avoiding "Invalid Descriptor Index" errors, see examples below)
+* **meta_data**: gives details on given list of tables/views, including data
+types, indexes, completeness and proportion values that are unique. 
+
+## Installation
+
+This package is currently private and therefore requires a GitHub Personal 
+Access Token (PAT) to be set up for an account that has access to the 
+NottsHC GitHub organisation on GitHub. 
+
+**Important**: your GitHub PAT should be stored in the local Git credential store
+and **not** a local .Renviron file. Further to this, the package `keyring`
+should be used to store credentials used in scripts rather than the 
+Renviron file, see recommendations on this 
+[here](https://solutions.posit.co/connections/db/best-practices/managing-credentials/).
+Note that the `get_env_var()` function in this package should be used in place
+of the `get_env_var()` function, which uses `keyring` in the background and 
+prompts moving from Renviron to `keyring`where relevant. 
+
+To create a GitHub PAT (if you don't have one already):
+
+1. Go to <https://github.com/settings/tokens> which takes you to
+your own personal GitHub account settings where you will need to
+`Generate new token`. 
+2. Give this a suitable name like `Repo access` and tick the `repo` group for 
+full control of private repositories.
+3. *Remember to copy the code that is generated as this cannot be viewed
+again*
+
+To set up GitHub PAT in the Git Credential Store & install package:
+
+```{r, install, eval=FALSE}
+
+# Install required packages
+install.packages("usethis")
+install.packages("gitcreds")
+install.packages("remotes")
+install.packages("pak")
+
+# set up GitHub PAT. Note: if a GitHub PAT has already been saved, the following
+# will give an option to replace the credentials. Run the function, select the 
+# relevant option and update the PAT with the one just copied from GitHub. 
+gitcreds::gitcreds_set()
+
+# Check has been set properly, the below should return a list with details of:
+# protocol, host, username and password. None of these should be NA, the 
+# password should have "<-- hidden -->". 
+gitcreds::gitcreds_get()
+
+# If the above doesn't look correct:
+#  1. Make sure you don't have GITHUB_PAT set in your Renviron file. If you do, 
+#     delete it, restart R, and check it's no longer in use by running
+#     Sys.getenv("GITHUB_PAT"), this should return "". 
+#  2. Delete your GITHUB_PAT on GitHub at https://github.com/settings/tokens and 
+#     re-create the PAT using the instructions above (this may have failed if 
+#     you already had a GitHub PAT set up). 
+
+# If the output of gitcreds::gitcreds_get() still looks incorrect, contact the 
+# author of this package. 
+
+# install the package (see notes below if this fails)
+pak::pkg_install("Notts-HC/SQLRtools")
+
+```
+
+If you have a `GITHUB_PAT` set up in the Renviron file **delete it**. The 
+following can be used to check this: `get_env_var("GITHUB_PAT")`, it should
+return "". 
+
+Full details on this recommended approach can be found 
+[here](https://usethis.r-lib.org/articles/git-credentials.html).
+
+The above should install the package **but will fail if you don't have the 
+correct version of RTools installed to work with your version of R**, i.e.
+if you've updated to R v 4.4.1 but still only have RTools4 you'll get an
+error around the version of Rtools or R not being able to locate the relevant
+build tools. A request has been made to IT to update the version of RTools 
+available in the software center. 
+
+However,the following work around can be used to install with remotes by using the
+GitHub PAT as an environment variable via git credentials:
+
+
+```{r, install back up, eval = FALSE}
+# the following can be used as a work around if pak fails to install the package:
+
+# set the GITHUB_PAT environment vairbale (this will NOT be saved in Renviron):
+Sys.setenv(GITHUB_PAT = gitcreds::gitcreds_get(use_cache = FALSE)$password)
+
+# install using remotes
+remotes::install_github("Notts-HC/SQLRtools")
+
+
+```
+
+
+## Using the package
+
+As above, the package contains an R6 class object that acts as the connection
+to the server. This means that once the initial sql_server class object is 
+created there is no further need to provide connection details to connect to the
+server. 
+
+The below gives examples of connecting to a MSSQL server and MYSQL server:
+
+```{r sql connection, eval=FALSE}
+
+library(SQLRtools)
+
+
+# set connection to MS SQL server
+ms_sql_server <- sql_server$new(driver = "SQL Server",
+                                server = get_env_var("MSSQL_SERVER"),
+                                database = get_env_var("MSSQL_DATABASE"))
+
+# set connect to MySQL server
+my_sql_server <- sql_server$new(driver = "MySQL ODBC 8.0 Unicode Driver",
+                                server = get_env_var("HOST_NAME"),
+                                database = get_env_var("MYSQL_DB"),
+                                port = get_env_var("MYSQL_PORT"),
+                                uid = get_env_var("MYSQL_USER"),
+                                pwd = get_env_var("MYSQL_PASSWORD"))
+
+```
+
+The methods listed above can now be used with these connections to:
+
+##### Upload & query data
+
+```{r basic sql examples, eval=FALSE}
+
+# create a basic temp table
+my_data <- data.frame(a = c("a", "b", "c"),
+                      b = 1:3)
+
+# upload as a temporary table - note that generally close_conn should be TRUE
+# (which is the default setting), but it needs to be FALSE here so the 
+# connection isn't shut after uploading the temporary table, as this would drop
+# the temporary table straight away. 
+ms_sql_server$upload(data = my_data,
+                     table_name = "#SQLRtools_example",
+                     close_conn = FALSE)
+
+# get the data
+sql_data <- ms_sql_server$get("SELECT * 
+                               FROM #SQLRtools_example")
+
+
+```
+
+
+##### Explore databases & their objects
+
+```{r details of objects on server, eval=FALSE}
+
+# get databases in server
+ms_sql_dbs <- ms_sql_server$databases()
+
+# get list of tables in a given database
+my_sql_db_tables <- ms_sql_server$db_tables(database = ms_sql_dbs$name[20])
+
+# get list of views in a given database
+my_sql_db_views <- ms_sql_server$db_views(database = ms_sql_dbs$name[20])
+
+# get meta data of table in given tables
+my_sql_meta_data <- ms_sql_server$meta_data(database = ms_sql_dbs$name[20],
+                                            objects = my_sql_db_views$view_name[1:5],
+                                            details = FALSE)
+
+names(my_sql_meta_data)[1]
+View(my_sql_meta_data[1][[1]])
+
+```
+
+##### Avoid the "Invalid Descriptor Index" issue
+
+```{r invalid descriptor index example, eval=FALSE}
+
+# create a basic temp table
+my_data <- data.frame(a = c("a", "b", "c"),
+                      b = 1:3)
+
+# upload as a temporary table 
+ms_sql_server$upload(data = my_data,
+                     table_name = "#SQLRtools_example",
+                     close_conn = FALSE)
+
+# change the data type of column a to varchar(max)
+ms_sql_server$run("ALTER TABLE #SQLRtools_example
+                   ALTER COLUMN a varchar(max);",
+                  close_conn = FALSE)
+
+# try extracting the data
+ms_sql_server$get("SELECT * FROM #SQLRtools_example",
+                  close_conn = FALSE)
+
+# use method order_object_fields to avoid issue
+
+# get all the fields ordered by data type
+table_fields <- ms_sql_server$order_object_fields(object = "#SQLRtools_example",
+                                                  close_conn = FALSE)
+
+# now extract all the data
+ms_sql_server$get(glue("SELECT {table_fields} 
+                        FROM #SQLRtools_example"))
+
+# note that the above table only has 2 fields. Where your trying to run 
+# select * on a table with a lot of fields and multiple varchar(max) or 
+# geometry feilds, the above makes life a lot easier (notwithstanding the fact 
+# it's good practice to avoid 'select *' in SQL where possible). 
+
+```

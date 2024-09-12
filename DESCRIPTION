@@ -1,0 +1,30 @@
+Package: SQLRtools
+Type: Package
+Title: SQL R Tools
+Version: 0.0.1
+Author: c(person("Stephen", "Spreadborough", 
+          , "stephen.spreadborough@nottshc.nhs.uk ", 
+          role = c("aut", "cre")))
+Maintainer: Stephen Spreadborough <stephen.spreadborough@nottshc.nhs.uk>
+Description: R6 Class for connecting to MSSQL and MYSQL servers and methods 
+    for interacting with the databases on the servers, such as 
+    extracting/uploading data getting details of objects in the sever.
+License: MIT + file LICENSE
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE, r6 = TRUE)
+RoxygenNote: 7.3.2
+Imports:
+    R6,
+    dplyr,
+    glue,
+    odbc,
+    DBI,
+    lubridate,
+    keyring,
+    stringi,
+    lifecycle,
+    janitor
+Suggests: 
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
