@@ -128,7 +128,7 @@ This README has been compiled on the
 
 ``` r
 Sys.time()
-#> [1] "2024-09-30 13:50:40 BST"
+#> [1] "2024-09-30 13:57:31 BST"
 ```
 
 Here are the tests results and package coverage:
@@ -137,13 +137,9 @@ Here are the tests results and package coverage:
 devtools::check(quiet = TRUE)
 #> ℹ Loading SQLRtools
 #> ── R CMD check results ──────────────────────────────────── SQLRtools 0.0.1 ────
-#> Duration: 1m 34s
+#> Duration: 1m 37.3s
 #> 
-#> ❯ checking top-level files ... NOTE
-#>   Non-standard file/directory found at top level:
-#>     'NEWS.html'
-#> 
-#> 0 errors ✔ | 0 warnings ✔ | 1 note ✖
+#> 0 errors ✔ | 0 warnings ✔ | 0 notes ✔
 ```
 
 ``` r
