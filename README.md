@@ -120,6 +120,39 @@ Sys.setenv(GITHUB_PAT = gitcreds::gitcreds_get(use_cache = FALSE)$password)
 remotes::install_github("Notts-HC/SQLRtools")
 ```
 
+## About
+
+You are reading the doc about version: 0.0.1
+
+This README has been compiled on the
+
+``` r
+Sys.time()
+#> [1] "2024-09-30 13:50:40 BST"
+```
+
+Here are the tests results and package coverage:
+
+``` r
+devtools::check(quiet = TRUE)
+#> ℹ Loading SQLRtools
+#> ── R CMD check results ──────────────────────────────────── SQLRtools 0.0.1 ────
+#> Duration: 1m 34s
+#> 
+#> ❯ checking top-level files ... NOTE
+#>   Non-standard file/directory found at top level:
+#>     'NEWS.html'
+#> 
+#> 0 errors ✔ | 0 warnings ✔ | 1 note ✖
+```
+
+``` r
+covr::package_coverage()
+#> SQLRtools Coverage: 94.92%
+#> R/sql_server.R: 94.87%
+#> R/utils.R: 95.83%
+```
+
 ## Using the package
 
 As above, the package contains an R6 class object that acts as the

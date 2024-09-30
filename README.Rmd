@@ -132,6 +132,30 @@ remotes::install_github("Notts-HC/SQLRtools")
 
 ```
 
+## About
+
+You are reading the doc about version: 0.0.1
+
+This README has been compiled on the
+
+```{r}
+Sys.time()
+```
+
+Here are the tests results and package coverage:
+
+```{r, error = TRUE}
+devtools::check(quiet = TRUE)
+```
+
+```{r echo = FALSE}
+unloadNamespace("SQLRtools")
+```
+
+```{r, error = TRUE}
+covr::package_coverage()
+
+```
 
 ## Using the package
 
