@@ -20,7 +20,7 @@ mysql_serv <- sql_server$new(driver = "MySQL ODBC 8.0 Unicode Driver",
 test_table_name <- "SQLRtools_test_table"
 
 # make sure table doesn't exist before running
-suppressWarnings(mysql_serv$drop_table(test_table_name))
+suppressMessages(mysql_serv$drop_table(test_table_name))
 
 # create dummy data to be uploaded
 test_data <- data.frame(Int_field = 1:200,

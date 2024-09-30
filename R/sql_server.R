@@ -118,7 +118,12 @@ sql_server <- R6Class("sql_server", public = list(
       conn_valid <- FALSE
     } else {
         conn_valid <- DBI::dbIsValid(self$conn)
-        }
+    }
+    
+    # if database is different to self$database, re-connect
+    if (database != self$database) {
+      conn_valid <- FALSE
+    }
 
     if (isFALSE(conn_valid)) {
 
@@ -741,7 +746,7 @@ sql_server <- R6Class("sql_server", public = list(
                        date_filter = NULL,
                        date_field = NULL,
                        close_conn = TRUE) {
-
+    
     # set database in connection
     self$connect(database = database)
 
@@ -849,8 +854,12 @@ sql_server <- R6Class("sql_server", public = list(
       if (self$server_type %in% "mssql") {
         obj_md_query <- gsub("AND TABLE_SCHEMA",
                              " -- AND TABLE_SCHEMA",
-                             obj_md_query)
+                             obj_md_query) 
       }
+      
+      
+      # set database in connection
+      self$connect(database = database)
 
       # get basic meta from SQL
       obj_MD <- self$get(obj_md_query,

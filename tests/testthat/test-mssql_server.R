@@ -16,7 +16,7 @@ mssql_serv <- sql_server$new(driver = "SQL Server",
 test_table_name <- "#SQLRtools_test_table"
 
 # make sure table doesn't exist before running
-suppressWarnings(mssql_serv$drop_table(test_table_name))
+suppressMessages(mssql_serv$drop_table(test_table_name))
 
 # create dummy data to be uploaded
 test_data <- data.frame(Int_field = 1:200,
