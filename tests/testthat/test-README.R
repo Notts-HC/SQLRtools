@@ -96,7 +96,7 @@ testthat::test_that("README", {
                                                     close_conn = FALSE)
 
   # now extract all the data
-  tempdata <- ms_sql_server$get(glue("SELECT {table_fields}
+  tempdata <- ms_sql_server$get(glue::glue("SELECT {table_fields}
                                      FROM #SQLRtools_example",
                                      close_conn = TRUE))
 

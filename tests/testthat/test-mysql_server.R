@@ -24,11 +24,11 @@ suppressMessages(mysql_serv$drop_table(test_table_name))
 
 # create dummy data to be uploaded
 test_data <- data.frame(Int_field = 1:200,
-                        char_field_1 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
-                        char_field_2 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+                        char_field_1 = stringi::stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+                        char_field_2 = stringi::stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
                         date_field = sample(seq(as.Date('2018/01/01'), as.Date('2024/01/01'), by = "day"), 200),
-                        date_time_field = sample(seq(as_datetime('2018-01-01 00:00:00'),
-                                                     as_datetime('2024-01-01 00:00:00'),
+                        date_time_field = sample(seq(lubridate::as_datetime('2018-01-01 00:00:00'),
+                                                     lubridate::as_datetime('2024-01-01 00:00:00'),
                                                      by = "min"), 200))
 
 
@@ -45,13 +45,13 @@ testthat::test_that("mysql_server - upload method", {
   table_exists <- mysql_serv$table_exists(test_table_name)
 
   # n rows
-  table_rows <- mysql_serv$get(glue("SELECT count(*) as n
+  table_rows <- mysql_serv$get(glue::glue("SELECT count(*) as n
                                     from {test_table_name}")) %>%
-    pull(n) %>%
+    dplyr::pull(n) %>%
     as.integer()
 
   # field names
-  table_fields <- mysql_serv$get(glue("SELECT *
+  table_fields <- mysql_serv$get(glue::glue("SELECT *
                                     from {test_table_name}
                                     LIMIT 0"))
 
@@ -78,9 +78,9 @@ testthat::test_that("mysql_server - upload method", {
                                            append_data = TRUE)
 
   # n rows
-  table_rows <- mysql_serv$get(glue("SELECT count(*) as n
+  table_rows <- mysql_serv$get(glue::glue("SELECT count(*) as n
                                     from {test_table_name}")) %>%
-    pull(n) %>%
+    dplyr::pull(n) %>%
     as.integer()
 
   # tests
@@ -93,7 +93,7 @@ testthat::test_that("mysql_server - upload method", {
 testthat::test_that("mysql_server - get method", {
 
   # extract the data just upload
-  db_data <- mysql_serv$get(glue("SELECT * FROM {test_table_name}"))
+  db_data <- mysql_serv$get(glue::glue("SELECT * FROM {test_table_name}"))
 
   # test matches the data uploaded
   testthat::expect_equal(rbind(test_data, test_data), db_data)
@@ -160,7 +160,7 @@ testthat::test_that("mysql_server - meta data", {
   )
 
   # drop the date field and run meta again
-  mysql_serv$run(glue("ALTER TABLE {test_table_name}
+  mysql_serv$run(glue::glue("ALTER TABLE {test_table_name}
                        DROP COLUMN date_field;"),
                  close_conn = FALSE)
 

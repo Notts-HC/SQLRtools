@@ -49,7 +49,7 @@ get_env_var <- function(var_name) {
       # if Sys.gentenv worked, give warning and return
       if (sys_env[1] == TRUE & var != "") {
 
-        warning(glue(
+        warning(glue::glue(
           "variable {var_name} found in Renviron file but not windows credentials. ",
           "Update your process to use keyring and not .Renviron file by doing the ",
           "following: \n",
@@ -63,7 +63,7 @@ get_env_var <- function(var_name) {
 
         # otherwise, variable not found
       } else {
-        stop(glue("variable {var_name} not found using keyring or Sys.getenv()"))
+        stop(glue::glue("variable {var_name} not found using keyring or Sys.getenv()"))
       }
     }
   }

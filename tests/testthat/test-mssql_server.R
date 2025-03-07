@@ -20,11 +20,11 @@ suppressMessages(mssql_serv$drop_table(test_table_name))
 
 # create dummy data to be uploaded
 test_data <- data.frame(Int_field = 1:200,
-                        char_field_1 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
-                        char_field_2 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+                        char_field_1 = stringi::stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+                        char_field_2 = stringi::stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
                         date_field = sample(seq(as.Date('2018/01/01'), as.Date('2024/01/01'), by = "day"), 200),
-                        date_time_field = sample(seq(as_datetime('2018-01-01 00:00:00'),
-                                                     as_datetime('2024-01-01 00:00:00'),
+                        date_time_field = sample(seq(lubridate::as_datetime('2018-01-01 00:00:00'),
+                                                     lubridate::as_datetime('2024-01-01 00:00:00'),
                                                      by = "min"), 200))
 
 
@@ -42,14 +42,14 @@ testthat::test_that("mssql_server - upload method", {
                                           close_conn = FALSE)
 
   # n rows
-  table_rows <- mssql_serv$get(glue("SELECT count(*) as n
+  table_rows <- mssql_serv$get(glue::glue("SELECT count(*) as n
                                     from {test_table_name}"),
                                close_conn = FALSE) %>%
-    pull(n) %>%
+    dplyr::pull(n) %>%
     as.integer()
 
   # field names
-  table_fields <- mssql_serv$get(glue("SELECT TOP 0 *
+  table_fields <- mssql_serv$get(glue::glue("SELECT TOP 0 *
                                     from {test_table_name}"),
                                  close_conn = FALSE)
 
@@ -77,10 +77,10 @@ testthat::test_that("mssql_server - upload method", {
                                             close_conn = FALSE)
 
   # n rows
-  table_rows <- mssql_serv$get(glue("SELECT count(*) as n
+  table_rows <- mssql_serv$get(glue::glue("SELECT count(*) as n
                                     from {test_table_name}"),
                                close_conn = FALSE) %>%
-    pull(n) %>%
+    dplyr::pull(n) %>%
     as.integer()
 
   # tests
@@ -95,9 +95,9 @@ testthat::test_that("mssql_server - get data", {
   # extract the data just upload
   # note that date_field is getting turned into char as read into R (meta data
   # check below will confirm if being held as a date in SQL)
-  db_data <- mssql_serv$get(glue("SELECT * FROM {test_table_name}"),
+  db_data <- mssql_serv$get(glue::glue("SELECT * FROM {test_table_name}"),
                             close_conn = FALSE) %>%
-    mutate(date_field = as.Date(date_field))
+    dplyr::mutate(date_field = as.Date(date_field))
 
   # test matches the data uploaded
   testthat::expect_equal(rbind(test_data, test_data), db_data)
@@ -109,13 +109,13 @@ testthat::test_that("mssql_server - get data", {
 testthat::test_that("mssql_server - run & order by fields", {
 
   # change the data type of column a to varchar(max)
-  mssql_serv$run(glue("ALTER TABLE {test_table_name}
+  mssql_serv$run(glue::glue("ALTER TABLE {test_table_name}
                        ALTER COLUMN char_field_1 varchar(max);"),
                     close_conn = FALSE)
 
   # now expect error extracting the data
   testthat::expect_error(
-    suppressWarnings(mssql_serv$get(glue("SELECT * FROM {test_table_name}"),
+    suppressWarnings(mssql_serv$get(glue::glue("SELECT * FROM {test_table_name}"),
                                     close_conn = FALSE))
   )
 
@@ -126,17 +126,17 @@ testthat::test_that("mssql_server - run & order by fields", {
                                                  close_conn = FALSE)
 
   # now extract all the data
-  extract_ordered_feilds <- mssql_serv$get(glue("SELECT {table_fields}
+  extract_ordered_feilds <- mssql_serv$get(glue::glue("SELECT {table_fields}
                                                    FROM {test_table_name}"),
                                            close_conn = FALSE) %>%
-    mutate(date_field = as.Date(date_field))
+    dplyr::mutate(date_field = as.Date(date_field))
 
   # tests
   testthat::expect_equal(colnames(extract_ordered_feilds),
                          c("Int_field", "char_field_2", "date_field",
                            "date_time_field", "char_field_1"))
   testthat::expect_equal(rbind(test_data, test_data),
-                         select(extract_ordered_feilds,
+                         dplyr::select(extract_ordered_feilds,
                                 Int_field, char_field_1, char_field_2,
                                 date_field, date_time_field))
 
@@ -188,16 +188,16 @@ testthat::test_that("mssql_server - meta data", {
                                      date_filter = date_to_filter,
                                      date_field = "date_field",
                                      close_conn = FALSE)[[1]]
-  testthat::expect_equal(meta_data2$n_rows[1], nrow(filter(test_data, date_field >= date_to_filter))*2)
+  testthat::expect_equal(meta_data2$n_rows[1], nrow(stats::filter(test_data, date_field >= date_to_filter))*2)
   testthat::expect_true(grepl("(from field \\[date_field\\])", meta_data2$date_last_non_null_value[1]))
 
   # drop the date field and run meta again
-  mssql_serv$run(glue("ALTER TABLE {test_table_name}
+  mssql_serv$run(glue::glue("ALTER TABLE {test_table_name}
                        DROP COLUMN date_field;"),
                  close_conn = FALSE)
 
   # drop the date field and run meta again
-  mssql_serv$run(glue("ALTER TABLE {test_table_name}
+  mssql_serv$run(glue::glue("ALTER TABLE {test_table_name}
                        DROP COLUMN date_time_field;"),
                  close_conn = FALSE)
 
@@ -233,7 +233,7 @@ testthat::test_that("mssql_server - close connection", {
 
   # reconnect & check temp table no longer exists
   testthat::expect_error(
-    mssql_serv$get(glue("SELECT * FROM {test_table_name}"))
+    mssql_serv$get(glue::glue("SELECT * FROM {test_table_name}"))
   )
 
   # close connection

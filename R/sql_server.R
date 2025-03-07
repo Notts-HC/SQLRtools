@@ -28,7 +28,7 @@
 #'
 #' @export
 
-sql_server <- R6Class("sql_server", public = list(
+sql_server <- R6::R6Class("sql_server", public = list(
 
 
   #' @field driver driver to be used, e.g. "SQL Server". Quoted string,
@@ -89,7 +89,7 @@ sql_server <- R6Class("sql_server", public = list(
     self$uid <- uid
     self$pwd <- pwd
     self$conn
-    self$server_type <- case_when(tolower(self$driver) == "sql server" ~ "mssql",
+    self$server_type <- dplyr::case_when(tolower(self$driver) == "sql server" ~ "mssql",
                                   grepl("mysql", tolower(self$driver)) ~ "mysql",
                                   TRUE ~ "other")
 
@@ -166,7 +166,7 @@ sql_server <- R6Class("sql_server", public = list(
 
     if (isTRUE(close)) {
       if (DBI::dbIsValid(self$conn)) {
-        dbDisconnect(self$conn)
+        DBI::dbDisconnect(self$conn)
       }
     }
   },
@@ -281,13 +281,13 @@ sql_server <- R6Class("sql_server", public = list(
       # If not as many as there are columns stop, otherwise name them
       if (length(variable_types) != length(colnames(data))) {
 
-        stop(glue("Number of Variable Types specified needs to be the same as ",
+        stop(glue::glue("Number of Variable Types specified needs to be the same as ",
                   "the number of columns in the data"))
 
       } else {
 
         # Make variable_types a "named character vector"
-        variable_types <- setNames(variable_types, c(colnames(data)))
+        variable_types <- stats::setNames(variable_types, c(colnames(data)))
 
       }
     }
@@ -303,14 +303,14 @@ sql_server <- R6Class("sql_server", public = list(
     if (self$table_exists(table_name, close_conn = close_conn) == "yes"
         & append_data == FALSE) {
 
-      stop(glue("Table {table_name} already exists. To add data to this table ",
+      stop(glue::glue("Table {table_name} already exists. To add data to this table ",
                  "set append_data to TRUE"))
 
     } else if (self$table_exists(table_name, close_conn = close_conn) == "no"
                & append_data == TRUE) {
 
       append_data <- FALSE
-      warning(glue("Append set to TRUE but table doesn't exist. Still run ",
+      warning(glue::glue("Append set to TRUE but table doesn't exist. Still run ",
                    "but check outputs"))
 
     }
@@ -319,10 +319,10 @@ sql_server <- R6Class("sql_server", public = list(
     if (self$table_exists(table_name, close_conn = close_conn) == "no") {
       start_n_rows <- 0
     } else {
-      start_n_rows <- self$get(query = glue("SELECT count(*) AS n
+      start_n_rows <- self$get(query = glue::glue("SELECT count(*) AS n
                                              FROM {table_name}"),
                                close_conn = close_conn) %>%
-        pull(n)
+        dplyr::pull(n)
     }
 
     # set connection
@@ -358,11 +358,11 @@ sql_server <- R6Class("sql_server", public = list(
 
       # group data
       data <- data %>%
-        mutate(group = floor(row_number()/batch_upload))
+        dplyr::mutate(group = floor(dplyr::row_number()/batch_upload))
 
       # set up progress bar
       progress <- 0
-      pb <- txtProgressBar(min = progress,
+      pb <- utils::txtProgressBar(min = progress,
                            max = max(unique(data$group)),
                            initial = 0,
                            style = 3)
@@ -371,8 +371,8 @@ sql_server <- R6Class("sql_server", public = list(
       for (i in unique(data$group)) {
 
         data_to_upload <- data %>%
-          filter(group == i) %>%
-          select(-group)
+          stats::filter(group == i) %>%
+          dplyr::select(-group)
 
         # unless it's the first loop, set append to true and variable types to NULL
         if (i != min(unique(data$group))) {
@@ -389,7 +389,7 @@ sql_server <- R6Class("sql_server", public = list(
 
         # update progress bar
         progress <- progress + 1
-        setTxtProgressBar(pb, progress)
+        utils::setTxtProgressBar(pb, progress)
       }
 
       # close the progress bar
@@ -397,10 +397,10 @@ sql_server <- R6Class("sql_server", public = list(
     }
 
     # check number of rows in table
-    table_n_rows <- self$get(glue("SELECT count(*) AS n
+    table_n_rows <- self$get(glue::glue("SELECT count(*) AS n
                                     FROM {table_name}"),
                              close_conn = close_conn) %>%
-      pull(n)
+      dplyr::pull(n)
 
     # Close ODBC connection
     self$close_connection(close_conn)
@@ -409,7 +409,7 @@ sql_server <- R6Class("sql_server", public = list(
     if (start_n_rows + nrow(data) == table_n_rows) {
       return("success")
     } else {
-      return(glue("N rows don't match, number in table before upload ",
+      return(glue::glue("N rows don't match, number in table before upload ",
                   "({start_n_rows}) plus number rows in data ({nrow(data)}) ",
                   "not equal to n rows now in table in server ({table_n_rows})"))
     }
@@ -435,7 +435,7 @@ sql_server <- R6Class("sql_server", public = list(
       self$close_connection(close_conn)
 
       } else {
-        message(glue("table {table_name} doesn't exist"))
+        message(glue::glue("table {table_name} doesn't exist"))
         }
   },
 
@@ -493,20 +493,20 @@ sql_server <- R6Class("sql_server", public = list(
                           FROM INFORMATION_SCHEMA.TABLES
                           WHERE TABLE_TYPE = 'BASE TABLE'",
                          close_conn = close_conn) %>%
-        arrange(table_name)
+        dplyr::arrange(table_name)
 
     } else if (self$server_type == "mysql") {
 
       # data
-      tables <- self$get(glue("SHOW FULL TABLES IN {database}
+      tables <- self$get(glue::glue("SHOW FULL TABLES IN {database}
                                WHERE TABLE_TYPE LIKE 'BASE TABLE'"),
                          close_conn = close_conn) %>%
-        mutate(database = database,
+        dplyr::mutate(database = database,
                schema = NA_character_) %>%
-        select(-Table_type)
+        dplyr::select(-Table_type)
 
       colnames(tables)[1] <- "table_name"
-      arrange(tables, table_name)
+      dplyr::arrange(tables, table_name)
     }
     return(tables)
   },
@@ -538,19 +538,19 @@ sql_server <- R6Class("sql_server", public = list(
                          FROM INFORMATION_SCHEMA.TABLES
                          WHERE TABLE_TYPE = 'VIEW'",
                         close_conn = close_conn) %>%
-        arrange(view_name)
+        dplyr::arrange(view_name)
 
     } else if (self$server_type == "mysql") {
 
       # data
-      views <- self$get(glue("SHOW FULL TABLES IN {database}
+      views <- self$get(glue::glue("SHOW FULL TABLES IN {database}
                               WHERE TABLE_TYPE LIKE 'VIEW'"),
                         close_conn = close_conn) %>%
-        mutate(database = database,
+        dplyr::mutate(database = database,
                schema = NA_character_) %>%
-        select(-Table_type)
+        dplyr::select(-Table_type)
       colnames(views)[1] <- "view_name"
-      views <- arrange(views, view_name)
+      views <- dplyr::arrange(views, view_name)
     }
 
     # return
@@ -570,9 +570,9 @@ sql_server <- R6Class("sql_server", public = list(
 
       temp_table <- self$db_tables(database = "tempdb",
                                    close_conn = FALSE) %>%
-        filter(grepl(paste0(x, "_"), table_name) |
+        stats::filter(grepl(paste0(x, "_"), table_name) |
                  x == table_name) %>%
-        pull(table_name)
+        dplyr::pull(table_name)
 
       if (length(temp_table) == 1) {
         return(temp_table)
@@ -620,16 +620,16 @@ sql_server <- R6Class("sql_server", public = list(
     if (self$server_type == "mssql") {
 
       # get fields & data types
-      data_types <- self$get(glue("SELECT column_name
+      data_types <- self$get(glue::glue("SELECT column_name
                                   , data_type
                                   , character_maximum_length
                                   FROM INFORMATION_SCHEMA.COLUMNS
                                   WHERE TABLE_NAME = '{object}'"),
                              close_conn = close_conn) %>%
-        mutate(row_id = row_number(),
-               order = case_when(character_maximum_length == -1L ~ 99999L,
+        dplyr::mutate(row_id = dplyr::row_number(),
+               order = dplyr::case_when(character_maximum_length == -1L ~ 99999L,
                                  TRUE ~ row_id)) %>%
-        arrange(order)
+        dplyr::arrange(order)
 
       # return
       return(paste0(data_types$column_name, collapse = ", "))
@@ -676,7 +676,7 @@ sql_server <- R6Class("sql_server", public = list(
 
       obj_name <- self$temp_table_name(obj)
 
-      obj_field_query <- glue("SELECT column_name as col_name
+      obj_field_query <- glue::glue("SELECT column_name as col_name
                                FROM INFORMATION_SCHEMA.COLUMNS
                                WHERE TABLE_NAME = '{obj_name}'
                                AND TABLE_SCHEMA = '{database}'")
@@ -690,7 +690,7 @@ sql_server <- R6Class("sql_server", public = list(
 
       field_list[[obj]] <- self$get(obj_field_query,
                                     close_conn = close_conn) %>%
-        pull(col_name)
+        dplyr::pull(col_name)
     }
 
     # return
@@ -758,9 +758,9 @@ sql_server <- R6Class("sql_server", public = list(
     # set data filter
     if (!is.null(date_filter) & !is.null(date_field)) {
       if (self$server_type == "mysql") {
-        date_filter <- glue("WHERE `{date_field}` >= '{date_filter}'")
+        date_filter <- glue::glue("WHERE `{date_field}` >= '{date_filter}'")
       } else {
-        date_filter <- glue("WHERE [{date_field}] >= '{date_filter}'")
+        date_filter <- glue::glue("WHERE [{date_field}] >= '{date_filter}'")
       }
     } else if (!is.null(date_filter) | !is.null(date_field)) {
       message("date_filter & date_field need setting for a date filter to be applied")
@@ -774,11 +774,11 @@ sql_server <- R6Class("sql_server", public = list(
       top_n_rows <- ""
     } else if (!is.null(row_limit) & !is.null(date_field)) {
       if (self$server_type == "mysql") {
-        order_by <- glue("ORDER BY `{date_field}` DESC LIMIT {row_limit}")
+        order_by <- glue::glue("ORDER BY `{date_field}` DESC LIMIT {row_limit}")
         top_n_rows <- ""
       } else if (self$server_type == "mssql") {
-        order_by <- glue("ORDER BY [{date_field}] DESC")
-        top_n_rows <- glue("TOP {row_limit}")
+        order_by <- glue::glue("ORDER BY [{date_field}] DESC")
+        top_n_rows <- glue::glue("TOP {row_limit}")
       }
     } else if (!is.null(row_limit) & is.null(date_field)) {
       message("row_limit not applied when date_field is null")
@@ -786,11 +786,11 @@ sql_server <- R6Class("sql_server", public = list(
 
     # get list of all objects
     db_objects <- rbind(self$db_views(database = database, close_conn) %>%
-                          rename(obj_name = view_name) %>%
-                          mutate(type = "view"),
+                          dplyr::rename(obj_name = view_name) %>%
+                          dplyr::mutate(type = "view"),
                         self$db_tables(database = database, close_conn) %>%
-                          rename(obj_name = table_name) %>%
-                          mutate(type = "user_table"))
+                          dplyr::rename(obj_name = table_name) %>%
+                          dplyr::mutate(type = "user_table"))
 
     # if object supplied, filter db_objects for them
     if (!is.null(objects)) {
@@ -805,22 +805,22 @@ sql_server <- R6Class("sql_server", public = list(
         }) %>%
         unname()
 
-      objects <- filter(db_objects, obj_name %in% objects)
+      objects <- stats::filter(db_objects, obj_name %in% objects)
     } else {
       objects <- db_objects
     }
 
     # add in fields & syntax for SQL (important if table names have spaces)
     objects <- objects %>%
-      mutate(obj_name_ = case_when(self$server_type == "mysql" ~ glue("`{obj_name}`"),
-                                   self$server_type == "mssql" ~ glue("[{obj_name}]")),
-             schema_ = case_when(!is.na(schema) ~ paste0(schema, "."),
+      dplyr::mutate(obj_name_ = dplyr::case_when(self$server_type == "mysql" ~ glue::glue("`{obj_name}`"),
+                                   self$server_type == "mssql" ~ glue::glue("[{obj_name}]")),
+             schema_ = dplyr::case_when(!is.na(schema) ~ paste0(schema, "."),
                                  TRUE ~ ""),
              full_obj_name = paste0(database, ".",
                                     schema_,
                                     obj_name_),
-             field_id = row_number()) %>%
-      select(-schema_, -obj_name_)
+             field_id = dplyr::row_number()) %>%
+      dplyr::select(-schema_, -obj_name_)
 
     # create list
     field_list <- list()
@@ -829,7 +829,7 @@ sql_server <- R6Class("sql_server", public = list(
     for (id in objects$field_id) {
 
       #id <- objects$field_id[1]
-      obj_ref <- filter(objects, field_id == id)
+      obj_ref <- stats::filter(objects, field_id == id)
       obj <- obj_ref$obj_name
       obj_full_name <- obj_ref$full_obj_name
       print(obj)
@@ -840,7 +840,7 @@ sql_server <- R6Class("sql_server", public = list(
                                    close_conn = close_conn)[[1]]
 
       # write query
-      obj_md_query <- glue("SELECT COLUMN_NAME as col_name
+      obj_md_query <- glue::glue("SELECT COLUMN_NAME as col_name
                           , IS_NULLABLE as nullable
                           , DATA_TYPE as data_type
                           , NUMERIC_PRECISION as num_precision
@@ -864,16 +864,16 @@ sql_server <- R6Class("sql_server", public = list(
       # get basic meta from SQL
       obj_MD <- self$get(obj_md_query,
                          close_conn = close_conn) %>%
-        mutate(max_len = case_when(!is.na(max_len) ~ paste0("(", max_len, ")"),
+        dplyr::mutate(max_len = dplyr::case_when(!is.na(max_len) ~ paste0("(", max_len, ")"),
                                    TRUE ~ ""),
-               col_type = glue("{data_type}{max_len}"),
+               col_type = glue::glue("{data_type}{max_len}"),
                nullable = tolower(nullable)) %>%
-        select(col_name, data_type, col_type, everything(), -max_len)
+        dplyr::select(col_name, data_type, col_type, dplyr::everything(), -max_len)
 
       # get indexes
       if (self$server_type == "mssql") {
 
-        indexes <- self$get(glue("select *
+        indexes <- self$get(glue::glue("select *
                              from sys.indexes
                              where object_id = (select top 1 object_id
                                                from sys.objects
@@ -882,22 +882,22 @@ sql_server <- R6Class("sql_server", public = list(
                                    AND [name] IS NOT NULL"),
                             close_conn = close_conn) %>%
           janitor::clean_names() %>%
-          select(name) %>%
-          rename(col_name = name) %>%
-          mutate(index = "yes")
+          dplyr::select(name) %>%
+          dplyr::rename(col_name = name) %>%
+          dplyr::mutate(index = "yes")
 
       } else if (self$server_type == "mysql") {
 
-        indexes <- self$get(glue("SHOW INDEX FROM {obj_full_name}"),
+        indexes <- self$get(glue::glue("SHOW INDEX FROM {obj_full_name}"),
                             close_conn = close_conn) %>%
           janitor::clean_names() %>%
-          select(column_name) %>%
-          rename(col_name = column_name) %>%
-          mutate(index = "yes")
+          dplyr::select(column_name) %>%
+          dplyr::rename(col_name = column_name) %>%
+          dplyr::mutate(index = "yes")
       }
 
       # add index details
-      obj_MD <- left_join(obj_MD, indexes, by = "col_name")
+      obj_MD <- dplyr::left_join(obj_MD, indexes, by = "col_name")
 
       # add further details
       if (details == "TRUE") {
@@ -908,8 +908,8 @@ sql_server <- R6Class("sql_server", public = list(
         # get first date time field if date field not provided
         if (is.null(date_field)) {
           date_field_null_calc <- obj_MD %>%
-            filter(data_type %in% c("date", "datetime")) %>%
-            pull(col_name)
+            stats::filter(data_type %in% c("date", "datetime")) %>%
+            dplyr::pull(col_name)
           if (length(date_field_null_calc) > 0) {
             date_field_null_calc <- date_field_null_calc[1]
           } else {
@@ -920,13 +920,13 @@ sql_server <- R6Class("sql_server", public = list(
         }
 
         # create temp table from main dataset
-        temp_table <- glue("meta_temp_{gsub('[[:punct:] ]+','', now())}")
+        temp_table <- glue::glue("meta_temp_{gsub('[[:punct:] ]+','', now())}")
 
         if (self$server_type == "mysql") {
 
-          temp_table <- glue("{database}.{temp_table}")
+          temp_table <- glue::glue("{database}.{temp_table}")
 
-          self$run(glue("CREATE TEMPORARY TABLE {temp_table}
+          self$run(glue::glue("CREATE TEMPORARY TABLE {temp_table}
                          SELECT {top_n_rows} *
                          FROM {obj_full_name}
                          {date_filter}
@@ -935,10 +935,10 @@ sql_server <- R6Class("sql_server", public = list(
 
         } else if (self$server_type == "mssql") {
 
-          temp_table <- glue("#{temp_table}")
+          temp_table <- glue::glue("#{temp_table}")
           self$connect()
           DBI::dbExecute(self$conn,
-                               glue("SELECT {top_n_rows} *
+                               glue::glue("SELECT {top_n_rows} *
                                      INTO {temp_table}
                                      FROM {obj_full_name}
                                      {date_filter}
@@ -947,25 +947,25 @@ sql_server <- R6Class("sql_server", public = list(
         }
 
         # number of rows
-        n_rows <- self$get(glue("SELECT count(*) as n
+        n_rows <- self$get(glue::glue("SELECT count(*) as n
                                  FROM {temp_table}"),
                            close_conn = FALSE) %>%
-          pull(n)
+          dplyr::pull(n)
 
         # set progress bar
         i <- 0
-        pb <- txtProgressBar(min = i, max = length(fields), initial = 0)
+        pb <- utils::txtProgressBar(min = i, max = length(fields), initial = 0)
 
         # loop through fields and get relevant details
         for (field in fields) {
 
           #field <- fields[1]
 
-          tidy_field <- case_when(self$server_type == "mssql" ~ glue("[{field}]"),
-                                  self$server_type == "mysql" ~ glue("`{field}`"))
+          tidy_field <- dplyr::case_when(self$server_type == "mssql" ~ glue::glue("[{field}]"),
+                                  self$server_type == "mysql" ~ glue::glue("`{field}`"))
 
           # percent complete
-          proportion_complete <- self$get(glue("SELECT count(*) as n, completed
+          proportion_complete <- self$get(glue::glue("SELECT count(*) as n, completed
                                                from (
                                                    SELECT case when {tidy_field} is null then 'missing'
                                                    ELSE 'complete' end as completed
@@ -975,15 +975,15 @@ sql_server <- R6Class("sql_server", public = list(
                                                "),
                                           close_conn = FALSE) %>%
             tidyr::complete(completed = c("missing", "complete")) %>%
-            mutate(n = as.integer(n),
-                   n = case_when(is.na(n) ~ 0,
+            dplyr::mutate(n = as.integer(n),
+                   n = dplyr::case_when(is.na(n) ~ 0,
                                  TRUE ~ n)) %>%
             tidyr::pivot_wider(values_from = "n", names_from = "completed") %>%
-            mutate(proportion_complete = complete/(missing+complete)) %>%
-            pull(proportion_complete)
+            dplyr::mutate(proportion_complete = complete/(missing+complete)) %>%
+            dplyr::pull(proportion_complete)
 
           # number of unique values
-          n_unique_vals <- self$get(glue("SELECT count(*) as n
+          n_unique_vals <- self$get(glue::glue("SELECT count(*) as n
                                     from (
                                         SELECT distinct {tidy_field}
                                         FROM {temp_table}
@@ -991,7 +991,7 @@ sql_server <- R6Class("sql_server", public = list(
                                     ) as b
                                     "),
                                     close_conn = FALSE) %>%
-            pull(n)
+            dplyr::pull(n)
 
           # calculate proportion of completed values are unique
           prop_completed_vals_unique <- n_unique_vals/(n_rows*proportion_complete)
@@ -1002,11 +1002,11 @@ sql_server <- R6Class("sql_server", public = list(
 
           # if have a date field, get the date of the last non-null record
           if (!is.null(date_field_null_calc)) {
-            date_of_last_non_null <- self$get(glue("SELECT max({date_field_null_calc}) as max_date
+            date_of_last_non_null <- self$get(glue::glue("SELECT max({date_field_null_calc}) as max_date
                                                    FROM {temp_table}
                                                    WHERE {tidy_field} IS NOT NULL"),
                                               close_conn = FALSE) %>%
-              pull(max_date) %>%
+              dplyr::pull(max_date) %>%
               paste0(., " (from field [", date_field_null_calc, "])")
           } else {
             date_of_last_non_null <- NA_character_
@@ -1023,12 +1023,12 @@ sql_server <- R6Class("sql_server", public = list(
 
           # update progress bar
           i <- i + 1
-          setTxtProgressBar(pb, i)
+          utils::setTxtProgressBar(pb, i)
         }
 
         # join to main meta data and add fields
         obj_MD <- obj_MD %>%
-          left_join(obj_details, by = "col_name")
+          dplyr::left_join(obj_details, by = "col_name")
 
         # drop temporary table if exists
         if (self$server_type == "mysql") {
