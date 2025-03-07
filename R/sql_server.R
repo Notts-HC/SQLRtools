@@ -1,4 +1,3 @@
-
 #' @title R6 Class representing a SQL Server
 #'
 #' @description
@@ -80,7 +79,6 @@ sql_server <- R6::R6Class("sql_server", public = list(
                         port = NULL,
                         uid = NULL,
                         pwd = NULL) {
-
     # set up params
     self$driver <- driver
     self$server <- server
@@ -89,15 +87,16 @@ sql_server <- R6::R6Class("sql_server", public = list(
     self$uid <- uid
     self$pwd <- pwd
     self$conn
-    self$server_type <- dplyr::case_when(tolower(self$driver) == "sql server" ~ "mssql",
-                                  grepl("mysql", tolower(self$driver)) ~ "mysql",
-                                  TRUE ~ "other")
+    self$server_type <- dplyr::case_when(
+      tolower(self$driver) == "sql server" ~ "mssql",
+      grepl("mysql", tolower(self$driver)) ~ "mysql",
+      TRUE ~ "other"
+    )
 
 
     if (self$server_type == "other") {
       stop("class only works with MS SQL and MySQL servers, check driver input")
     }
-
   },
 
   #' @description
@@ -110,49 +109,47 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' database used to create class.
 
   connect = function(database = self$database) {
-
     # if self$conn is null or invalid, connect/re-connect
     conn_null <- is.null(self$conn)
 
     if (conn_null == "TRUE") {
       conn_valid <- FALSE
     } else {
-        conn_valid <- DBI::dbIsValid(self$conn)
+      conn_valid <- DBI::dbIsValid(self$conn)
     }
-    
+
     # if database is different to self$database, re-connect
     if (database != self$database) {
       conn_valid <- FALSE
     }
 
     if (isFALSE(conn_valid)) {
-
       # set connection by server type
       if (self$server_type == "mssql") {
-
         # set connection string
         conn_string <- paste("driver={", self$driver, "};",
-                             "server=", self$server, ";",
-                             "database=", database, ";",
-                             "Encrypt=true;",
-                             "trusted_connection=true", sep = "")
+          "server=", self$server, ";",
+          "database=", database, ";",
+          "Encrypt=true;",
+          "trusted_connection=true",
+          sep = ""
+        )
 
         # set connection
         self$conn <- odbc::dbConnect(odbc::odbc(),
-                                     .connection_string = conn_string,
-                                     timeout = 60)
-
-
+          .connection_string = conn_string,
+          timeout = 60
+        )
       } else if (self$server_type == "mysql") {
-
         # set connection with credentials
         self$conn <- DBI::dbConnect(odbc::odbc(),
-                                    Driver   = self$driver,
-                                    Server   = self$server,
-                                    UID      = self$uid,
-                                    PWD      = self$pwd,
-                                    Port     = self$port,
-                                    database = database)
+          Driver   = self$driver,
+          Server   = self$server,
+          UID      = self$uid,
+          PWD      = self$pwd,
+          Port     = self$port,
+          database = database
+        )
       }
     }
   },
@@ -163,7 +160,6 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' @param close logical, TRUE or FALSE whether to close the connection.
 
   close_connection = function(close = TRUE) {
-
     if (isTRUE(close)) {
       if (DBI::dbIsValid(self$conn)) {
         DBI::dbDisconnect(self$conn)
@@ -182,12 +178,10 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' such as using temporary tables. Logical, default TRUE.
 
   get = function(query, close_conn = TRUE) {
-
     self$connect()
     output <- DBI::dbGetQuery(self$conn, query)
     self$close_connection(close_conn)
     return(output)
-
   },
 
   #' @description
@@ -203,12 +197,10 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' such as using temporary tables. Logical, default TRUE.
 
   run = function(query, close_conn = TRUE) {
-
     self$connect()
-    output <- DBI::dbSendStatement(self$conn, query, immediate  = TRUE)
+    output <- DBI::dbSendStatement(self$conn, query, immediate = TRUE)
     DBI::dbClearResult(output)
     self$close_connection(close_conn)
-
   },
 
 
@@ -225,14 +217,13 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' such as using temporary tables. Logical, default TRUE.
 
   table_exists = function(table_name, close_conn = TRUE) {
-
     # if database is tempdb, check the table name
     if (self$database == "tempdb") {
       table_name <- self$temp_table_name(table_name)
     }
 
     self$connect()
-    if(DBI::dbExistsTable(self$conn, table_name)) {
+    if (DBI::dbExistsTable(self$conn, table_name)) {
       self$close_connection(close_conn)
       return("yes")
     } else {
@@ -274,21 +265,17 @@ sql_server <- R6::R6Class("sql_server", public = list(
                     append_data = FALSE,
                     batch_upload = NULL,
                     close_conn = TRUE) {
-
     # If variable_types is not NULL, make sure same length as number cols in data
     if (!is.null(variable_types)) {
-
       # If not as many as there are columns stop, otherwise name them
       if (length(variable_types) != length(colnames(data))) {
-
-        stop(glue::glue("Number of Variable Types specified needs to be the same as ",
-                  "the number of columns in the data"))
-
+        stop(glue::glue(
+          "Number of Variable Types specified needs to be the same as ",
+          "the number of columns in the data"
+        ))
       } else {
-
         # Make variable_types a "named character vector"
         variable_types <- stats::setNames(variable_types, c(colnames(data)))
-
       }
     }
 
@@ -300,28 +287,30 @@ sql_server <- R6::R6Class("sql_server", public = list(
     }
 
     # Check if table exists and append_data = TRUE
-    if (self$table_exists(table_name, close_conn = close_conn) == "yes"
-        & append_data == FALSE) {
-
-      stop(glue::glue("Table {table_name} already exists. To add data to this table ",
-                 "set append_data to TRUE"))
-
-    } else if (self$table_exists(table_name, close_conn = close_conn) == "no"
-               & append_data == TRUE) {
-
+    if (self$table_exists(table_name, close_conn = close_conn) == "yes" &
+      append_data == FALSE) {
+      stop(glue::glue(
+        "Table {table_name} already exists. To add data to this table ",
+        "set append_data to TRUE"
+      ))
+    } else if (self$table_exists(table_name, close_conn = close_conn) == "no" &
+      append_data == TRUE) {
       append_data <- FALSE
-      warning(glue::glue("Append set to TRUE but table doesn't exist. Still run ",
-                   "but check outputs"))
-
+      warning(glue::glue(
+        "Append set to TRUE but table doesn't exist. Still run ",
+        "but check outputs"
+      ))
     }
 
     # get n rows in table to start with
     if (self$table_exists(table_name, close_conn = close_conn) == "no") {
       start_n_rows <- 0
     } else {
-      start_n_rows <- self$get(query = glue::glue("SELECT count(*) AS n
+      start_n_rows <- self$get(
+        query = glue::glue("SELECT count(*) AS n
                                              FROM {table_name}"),
-                               close_conn = close_conn) %>%
+        close_conn = close_conn
+      ) %>%
         dplyr::pull(n)
     }
 
@@ -337,39 +326,41 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
     # set table name formatting depending on server type
     if (self$server_type == "mssql") {
-      tbl_name <- DBI::Id(schema = schema_name,
-                          table = self$temp_table_name(table_name)) #check tt
+      tbl_name <- DBI::Id(
+        schema = schema_name,
+        table = self$temp_table_name(table_name)
+      ) # check tt
     } else if (self$server_type == "mysql") {
       tbl_name <- table_name
     }
 
     # if not doing in batch, just upload
     if (is.null(batch_upload)) {
-
       # Upload to SQL server
       DBI::dbWriteTable(self$conn,
-                        name = tbl_name,
-                        value = data,
-                        append = append_data,
-                        field.types = variable_types)
+        name = tbl_name,
+        value = data,
+        append = append_data,
+        field.types = variable_types
+      )
 
       # otherwise run as batches
     } else {
-
       # group data
       data <- data %>%
-        dplyr::mutate(group = floor(dplyr::row_number()/batch_upload))
+        dplyr::mutate(group = floor(dplyr::row_number() / batch_upload))
 
       # set up progress bar
       progress <- 0
-      pb <- utils::txtProgressBar(min = progress,
-                           max = max(unique(data$group)),
-                           initial = 0,
-                           style = 3)
+      pb <- utils::txtProgressBar(
+        min = progress,
+        max = max(unique(data$group)),
+        initial = 0,
+        style = 3
+      )
 
       # loop through groups
       for (i in unique(data$group)) {
-
         data_to_upload <- data %>%
           stats::filter(group == i) %>%
           dplyr::select(-group)
@@ -382,10 +373,11 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
         # Upload to SQL server
         DBI::dbWriteTable(self$conn,
-                          name = tbl_name,
-                          value = data_to_upload,
-                          append = append_data,
-                          field.types = variable_types)
+          name = tbl_name,
+          value = data_to_upload,
+          append = append_data,
+          field.types = variable_types
+        )
 
         # update progress bar
         progress <- progress + 1
@@ -399,7 +391,8 @@ sql_server <- R6::R6Class("sql_server", public = list(
     # check number of rows in table
     table_n_rows <- self$get(glue::glue("SELECT count(*) AS n
                                     FROM {table_name}"),
-                             close_conn = close_conn) %>%
+      close_conn = close_conn
+    ) %>%
       dplyr::pull(n)
 
     # Close ODBC connection
@@ -409,9 +402,11 @@ sql_server <- R6::R6Class("sql_server", public = list(
     if (start_n_rows + nrow(data) == table_n_rows) {
       return("success")
     } else {
-      return(glue::glue("N rows don't match, number in table before upload ",
-                  "({start_n_rows}) plus number rows in data ({nrow(data)}) ",
-                  "not equal to n rows now in table in server ({table_n_rows})"))
+      return(glue::glue(
+        "N rows don't match, number in table before upload ",
+        "({start_n_rows}) plus number rows in data ({nrow(data)}) ",
+        "not equal to n rows now in table in server ({table_n_rows})"
+      ))
     }
   },
 
@@ -426,17 +421,15 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' such as using temporary tables. Logical, default TRUE.
 
   drop_table = function(table_name, close_conn = TRUE) {
-
     if (self$table_exists(table_name,
-                          close_conn = close_conn) == "yes") {
-
+      close_conn = close_conn
+    ) == "yes") {
       self$connect()
       DBI::dbRemoveTable(self$conn, table_name)
       self$close_connection(close_conn)
-
-      } else {
-        message(glue::glue("table {table_name} doesn't exist"))
-        }
+    } else {
+      message(glue::glue("table {table_name} doesn't exist"))
+    }
   },
 
 
@@ -446,20 +439,14 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' `r lifecycle::badge("stable")`
 
   databases = function() {
-
     if (self$server_type == "mssql") {
-
       query <- "SELECT name FROM sys. databases"
-
     } else if (self$server_type == "mysql") {
-
       query <- "show databases"
-
     }
 
     # return
     return(self$get(query))
-
   },
 
 
@@ -480,29 +467,29 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' such as using temporary tables. Logical, default TRUE.
 
   db_tables = function(database = self$database, close_conn = TRUE) {
-
     # connect to database set for meta data
     self$connect(database = database)
 
     if (self$server_type == "mssql") {
-
       # data
       tables <- self$get("SELECT table_catalog as [database]
                           , table_schema as [schema]
                           , table_name
                           FROM INFORMATION_SCHEMA.TABLES
                           WHERE TABLE_TYPE = 'BASE TABLE'",
-                         close_conn = close_conn) %>%
+        close_conn = close_conn
+      ) %>%
         dplyr::arrange(table_name)
-
     } else if (self$server_type == "mysql") {
-
       # data
       tables <- self$get(glue::glue("SHOW FULL TABLES IN {database}
                                WHERE TABLE_TYPE LIKE 'BASE TABLE'"),
-                         close_conn = close_conn) %>%
-        dplyr::mutate(database = database,
-               schema = NA_character_) %>%
+        close_conn = close_conn
+      ) %>%
+        dplyr::mutate(
+          database = database,
+          schema = NA_character_
+        ) %>%
         dplyr::select(-Table_type)
 
       colnames(tables)[1] <- "table_name"
@@ -526,28 +513,28 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
   db_views = function(database = self$database,
                       close_conn = TRUE) {
-
     self$connect(database = database)
 
     if (self$server_type == "mssql") {
-
       # data
       views <- self$get("SELECT table_catalog as [database]
                          , table_schema as [schema]
                          , table_name as [view_name]
                          FROM INFORMATION_SCHEMA.TABLES
                          WHERE TABLE_TYPE = 'VIEW'",
-                        close_conn = close_conn) %>%
+        close_conn = close_conn
+      ) %>%
         dplyr::arrange(view_name)
-
     } else if (self$server_type == "mysql") {
-
       # data
       views <- self$get(glue::glue("SHOW FULL TABLES IN {database}
                               WHERE TABLE_TYPE LIKE 'VIEW'"),
-                        close_conn = close_conn) %>%
-        dplyr::mutate(database = database,
-               schema = NA_character_) %>%
+        close_conn = close_conn
+      ) %>%
+        dplyr::mutate(
+          database = database,
+          schema = NA_character_
+        ) %>%
         dplyr::select(-Table_type)
       colnames(views)[1] <- "view_name"
       views <- dplyr::arrange(views, view_name)
@@ -565,20 +552,18 @@ sql_server <- R6::R6Class("sql_server", public = list(
   #' @param x name of the table. Quoted string, no default.
 
   temp_table_name = function(x) {
-
     if (substr(x, 1, 1) == "#") {
-
-      temp_table <- self$db_tables(database = "tempdb",
-                                   close_conn = FALSE) %>%
+      temp_table <- self$db_tables(
+        database = "tempdb",
+        close_conn = FALSE
+      ) %>%
         stats::filter(grepl(paste0(x, "_"), table_name) |
-                 x == table_name) %>%
+          x == table_name) %>%
         dplyr::pull(table_name)
 
       if (length(temp_table) == 1) {
         return(temp_table)
-
       } else {
-
         # if not found any matches, assume doesn't exist or is not a temp table
         # and therefore return original name
         return(x)
@@ -609,7 +594,6 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
 
   order_object_fields = function(database = self$database, object, close_conn = TRUE) {
-
     self$connect(database = database)
 
     # if object is temp table, get the full name
@@ -618,27 +602,27 @@ sql_server <- R6::R6Class("sql_server", public = list(
     }
 
     if (self$server_type == "mssql") {
-
       # get fields & data types
       data_types <- self$get(glue::glue("SELECT column_name
                                   , data_type
                                   , character_maximum_length
                                   FROM INFORMATION_SCHEMA.COLUMNS
                                   WHERE TABLE_NAME = '{object}'"),
-                             close_conn = close_conn) %>%
-        dplyr::mutate(row_id = dplyr::row_number(),
-               order = dplyr::case_when(character_maximum_length == -1L ~ 99999L,
-                                 TRUE ~ row_id)) %>%
+        close_conn = close_conn
+      ) %>%
+        dplyr::mutate(
+          row_id = dplyr::row_number(),
+          order = dplyr::case_when(
+            character_maximum_length == -1L ~ 99999L,
+            TRUE ~ row_id
+          )
+        ) %>%
         dplyr::arrange(order)
 
       # return
       return(paste0(data_types$column_name, collapse = ", "))
-
-
     } else if (self$server_type == "mysql") {
-
       stop("function not required for My SQL databases")
-
     }
   },
 
@@ -659,13 +643,14 @@ sql_server <- R6::R6Class("sql_server", public = list(
   object_fields = function(database = self$database,
                            objects = NULL,
                            close_conn = TRUE) {
-
     self$connect(database = database)
 
     # if not given any objects, use them all
     if (is.null(objects)) {
-      objects <- c(self$db_views(database = database, close_conn)$view_name,
-                   self$db_tables(database = database, close_conn)$table_name)
+      objects <- c(
+        self$db_views(database = database, close_conn)$view_name,
+        self$db_tables(database = database, close_conn)$table_name
+      )
     }
 
     # create list
@@ -673,7 +658,6 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
     # get fields for each object
     for (obj in objects) {
-
       obj_name <- self$temp_table_name(obj)
 
       obj_field_query <- glue::glue("SELECT column_name as col_name
@@ -683,13 +667,16 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
       # if MS SQL server, remove reference to TABLE_SCHEMA
       if (self$server_type %in% "mssql") {
-        obj_field_query <- gsub("AND TABLE_SCHEMA",
-                                " -- AND TABLE_SCHEMA",
-                                obj_field_query)
+        obj_field_query <- gsub(
+          "AND TABLE_SCHEMA",
+          " -- AND TABLE_SCHEMA",
+          obj_field_query
+        )
       }
 
       field_list[[obj]] <- self$get(obj_field_query,
-                                    close_conn = close_conn) %>%
+        close_conn = close_conn
+      ) %>%
         dplyr::pull(col_name)
     }
 
@@ -746,7 +733,6 @@ sql_server <- R6::R6Class("sql_server", public = list(
                        date_filter = NULL,
                        date_field = NULL,
                        close_conn = TRUE) {
-    
     # set database in connection
     self$connect(database = database)
 
@@ -785,24 +771,25 @@ sql_server <- R6::R6Class("sql_server", public = list(
     }
 
     # get list of all objects
-    db_objects <- rbind(self$db_views(database = database, close_conn) %>%
-                          dplyr::rename(obj_name = view_name) %>%
-                          dplyr::mutate(type = "view"),
-                        self$db_tables(database = database, close_conn) %>%
-                          dplyr::rename(obj_name = table_name) %>%
-                          dplyr::mutate(type = "user_table"))
+    db_objects <- rbind(
+      self$db_views(database = database, close_conn) %>%
+        dplyr::rename(obj_name = view_name) %>%
+        dplyr::mutate(type = "view"),
+      self$db_tables(database = database, close_conn) %>%
+        dplyr::rename(obj_name = table_name) %>%
+        dplyr::mutate(type = "user_table")
+    )
 
     # if object supplied, filter db_objects for them
     if (!is.null(objects)) {
-
       # for each object, check if temp table and get full name if so
       objects <- sapply(objects, function(x) {
         if (substr(x, 1, 1) == "#") {
           return(self$temp_table_name(x))
         } else {
-            return(x)
-          }
-        }) %>%
+          return(x)
+        }
+      }) %>%
         unname()
 
       objects <- stats::filter(db_objects, obj_name %in% objects)
@@ -812,14 +799,22 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
     # add in fields & syntax for SQL (important if table names have spaces)
     objects <- objects %>%
-      dplyr::mutate(obj_name_ = dplyr::case_when(self$server_type == "mysql" ~ glue::glue("`{obj_name}`"),
-                                   self$server_type == "mssql" ~ glue::glue("[{obj_name}]")),
-             schema_ = dplyr::case_when(!is.na(schema) ~ paste0(schema, "."),
-                                 TRUE ~ ""),
-             full_obj_name = paste0(database, ".",
-                                    schema_,
-                                    obj_name_),
-             field_id = dplyr::row_number()) %>%
+      dplyr::mutate(
+        obj_name_ = dplyr::case_when(
+          self$server_type == "mysql" ~ glue::glue("`{obj_name}`"),
+          self$server_type == "mssql" ~ glue::glue("[{obj_name}]")
+        ),
+        schema_ = dplyr::case_when(
+          !is.na(schema) ~ paste0(schema, "."),
+          TRUE ~ ""
+        ),
+        full_obj_name = paste0(
+          database, ".",
+          schema_,
+          obj_name_
+        ),
+        field_id = dplyr::row_number()
+      ) %>%
       dplyr::select(-schema_, -obj_name_)
 
     # create list
@@ -827,17 +822,18 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
     # for each object
     for (id in objects$field_id) {
-
-      #id <- objects$field_id[1]
+      # id <- objects$field_id[1]
       obj_ref <- stats::filter(objects, field_id == id)
       obj <- obj_ref$obj_name
       obj_full_name <- obj_ref$full_obj_name
       print(obj)
 
       # get fields
-      fields <- self$object_fields(database = database,
-                                   objects = obj,
-                                   close_conn = close_conn)[[1]]
+      fields <- self$object_fields(
+        database = database,
+        objects = obj,
+        close_conn = close_conn
+      )[[1]]
 
       # write query
       obj_md_query <- glue::glue("SELECT COLUMN_NAME as col_name
@@ -852,27 +848,33 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
       # if MS SQL server, remove reference to TABLE_SCHEMA
       if (self$server_type %in% "mssql") {
-        obj_md_query <- gsub("AND TABLE_SCHEMA",
-                             " -- AND TABLE_SCHEMA",
-                             obj_md_query) 
+        obj_md_query <- gsub(
+          "AND TABLE_SCHEMA",
+          " -- AND TABLE_SCHEMA",
+          obj_md_query
+        )
       }
-      
-      
+
+
       # set database in connection
       self$connect(database = database)
 
       # get basic meta from SQL
       obj_MD <- self$get(obj_md_query,
-                         close_conn = close_conn) %>%
-        dplyr::mutate(max_len = dplyr::case_when(!is.na(max_len) ~ paste0("(", max_len, ")"),
-                                   TRUE ~ ""),
-               col_type = glue::glue("{data_type}{max_len}"),
-               nullable = tolower(nullable)) %>%
+        close_conn = close_conn
+      ) %>%
+        dplyr::mutate(
+          max_len = dplyr::case_when(
+            !is.na(max_len) ~ paste0("(", max_len, ")"),
+            TRUE ~ ""
+          ),
+          col_type = glue::glue("{data_type}{max_len}"),
+          nullable = tolower(nullable)
+        ) %>%
         dplyr::select(col_name, data_type, col_type, dplyr::everything(), -max_len)
 
       # get indexes
       if (self$server_type == "mssql") {
-
         indexes <- self$get(glue::glue("select *
                              from sys.indexes
                              where object_id = (select top 1 object_id
@@ -880,16 +882,16 @@ sql_server <- R6::R6Class("sql_server", public = list(
                                                where [name] = '{obj}' AND
                                                [type_desc] = '{obj_ref$type}')
                                    AND [name] IS NOT NULL"),
-                            close_conn = close_conn) %>%
+          close_conn = close_conn
+        ) %>%
           janitor::clean_names() %>%
           dplyr::select(name) %>%
           dplyr::rename(col_name = name) %>%
           dplyr::mutate(index = "yes")
-
       } else if (self$server_type == "mysql") {
-
         indexes <- self$get(glue::glue("SHOW INDEX FROM {obj_full_name}"),
-                            close_conn = close_conn) %>%
+          close_conn = close_conn
+        ) %>%
           janitor::clean_names() %>%
           dplyr::select(column_name) %>%
           dplyr::rename(col_name = column_name) %>%
@@ -901,7 +903,6 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
       # add further details
       if (details == "TRUE") {
-
         # record further info on fields
         obj_details <- data.frame()
 
@@ -923,7 +924,6 @@ sql_server <- R6::R6Class("sql_server", public = list(
         temp_table <- glue::glue("meta_temp_{gsub('[[:punct:] ]+','', now())}")
 
         if (self$server_type == "mysql") {
-
           temp_table <- glue::glue("{database}.{temp_table}")
 
           self$run(glue::glue("CREATE TEMPORARY TABLE {temp_table}
@@ -931,25 +931,26 @@ sql_server <- R6::R6Class("sql_server", public = list(
                          FROM {obj_full_name}
                          {date_filter}
                          {order_by}"),
-                   close_conn = FALSE)
-
+            close_conn = FALSE
+          )
         } else if (self$server_type == "mssql") {
-
           temp_table <- glue::glue("#{temp_table}")
           self$connect()
           DBI::dbExecute(self$conn,
-                               glue::glue("SELECT {top_n_rows} *
+            glue::glue("SELECT {top_n_rows} *
                                      INTO {temp_table}
                                      FROM {obj_full_name}
                                      {date_filter}
                                      {order_by}"),
-                         immediate = TRUE)
+            immediate = TRUE
+          )
         }
 
         # number of rows
         n_rows <- self$get(glue::glue("SELECT count(*) as n
                                  FROM {temp_table}"),
-                           close_conn = FALSE) %>%
+          close_conn = FALSE
+        ) %>%
           dplyr::pull(n)
 
         # set progress bar
@@ -958,11 +959,12 @@ sql_server <- R6::R6Class("sql_server", public = list(
 
         # loop through fields and get relevant details
         for (field in fields) {
+          # field <- fields[1]
 
-          #field <- fields[1]
-
-          tidy_field <- dplyr::case_when(self$server_type == "mssql" ~ glue::glue("[{field}]"),
-                                  self$server_type == "mysql" ~ glue::glue("`{field}`"))
+          tidy_field <- dplyr::case_when(
+            self$server_type == "mssql" ~ glue::glue("[{field}]"),
+            self$server_type == "mysql" ~ glue::glue("`{field}`")
+          )
 
           # percent complete
           proportion_complete <- self$get(glue::glue("SELECT count(*) as n, completed
@@ -973,13 +975,18 @@ sql_server <- R6::R6Class("sql_server", public = list(
                                                ) as b
                                                GROUP BY completed
                                                "),
-                                          close_conn = FALSE) %>%
+            close_conn = FALSE
+          ) %>%
             tidyr::complete(completed = c("missing", "complete")) %>%
-            dplyr::mutate(n = as.integer(n),
-                   n = dplyr::case_when(is.na(n) ~ 0,
-                                 TRUE ~ n)) %>%
+            dplyr::mutate(
+              n = as.integer(n),
+              n = dplyr::case_when(
+                is.na(n) ~ 0,
+                TRUE ~ n
+              )
+            ) %>%
             tidyr::pivot_wider(values_from = "n", names_from = "completed") %>%
-            dplyr::mutate(proportion_complete = complete/(missing+complete)) %>%
+            dplyr::mutate(proportion_complete = complete / (missing + complete)) %>%
             dplyr::pull(proportion_complete)
 
           # number of unique values
@@ -990,11 +997,12 @@ sql_server <- R6::R6Class("sql_server", public = list(
                                         WHERE {tidy_field} IS NOT NULL
                                     ) as b
                                     "),
-                                    close_conn = FALSE) %>%
+            close_conn = FALSE
+          ) %>%
             dplyr::pull(n)
 
           # calculate proportion of completed values are unique
-          prop_completed_vals_unique <- n_unique_vals/(n_rows*proportion_complete)
+          prop_completed_vals_unique <- n_unique_vals / (n_rows * proportion_complete)
           prop_completed_vals_unique <- round(prop_completed_vals_unique, 3)
 
           # tidy perc_complete
@@ -1005,7 +1013,8 @@ sql_server <- R6::R6Class("sql_server", public = list(
             date_of_last_non_null <- self$get(glue::glue("SELECT max({date_field_null_calc}) as max_date
                                                    FROM {temp_table}
                                                    WHERE {tidy_field} IS NOT NULL"),
-                                              close_conn = FALSE) %>%
+              close_conn = FALSE
+            ) %>%
               dplyr::pull(max_date) %>%
               paste0(., " (from field [", date_field_null_calc, "])")
           } else {
@@ -1013,13 +1022,17 @@ sql_server <- R6::R6Class("sql_server", public = list(
           }
 
           # add to data frame
-          obj_details <- rbind(obj_details,
-                               data.frame(col_name = field,
-                                          prop_complete = prop_complete,
-                                          n_unique_vals = n_unique_vals,
-                                          prop_completed_vals_unique = prop_completed_vals_unique,
-                                          date_last_non_null_value = date_of_last_non_null,
-                                          n_rows = n_rows))
+          obj_details <- rbind(
+            obj_details,
+            data.frame(
+              col_name = field,
+              prop_complete = prop_complete,
+              n_unique_vals = n_unique_vals,
+              prop_completed_vals_unique = prop_completed_vals_unique,
+              date_last_non_null_value = date_of_last_non_null,
+              n_rows = n_rows
+            )
+          )
 
           # update progress bar
           i <- i + 1
@@ -1045,10 +1058,4 @@ sql_server <- R6::R6Class("sql_server", public = list(
     # return data
     return(field_list)
   }
-
 ))
-
-
-
-
-
