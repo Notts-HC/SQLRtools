@@ -1,4 +1,3 @@
-
 # Test util functions
 #------------------------------------------------------------------------------#
 
@@ -8,7 +7,6 @@
 # 1. get_env_var() -------------------------------------------------------------
 
 testthat::test_that("utils - get_env_var", {
-
   test_var_val <- "SQLRtools_get_env_var_TEST"
 
   # create test var in renviron
@@ -21,8 +19,10 @@ testthat::test_that("utils - get_env_var", {
   )
 
   # create var using keyring
-  keyring::key_set_with_value(service = "SQLRtools_TEST_VAR",
-                              password = test_var_val)
+  keyring::key_set_with_value(
+    service = "SQLRtools_TEST_VAR",
+    password = test_var_val
+  )
 
   # get the variable again, not expecting warning as should come from keyring
   kr_var <- get_env_var("SQLRtools_TEST_VAR")
@@ -35,7 +35,4 @@ testthat::test_that("utils - get_env_var", {
   testthat::expect_error(get_env_var("SQLRtools_TEST_VAR"))
   testthat::expect_match(renv_var, test_var_val)
   testthat::expect_match(kr_var, test_var_val)
-
 })
-
-

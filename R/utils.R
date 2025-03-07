@@ -19,20 +19,20 @@
 #' @export
 
 get_env_var <- function(var_name) {
-
   # if running on server, use Sys.getenv()
   if (Sys.getenv()["USERNAME"][[1]] == "rstudio-connect") {
-
     return(Sys.getenv(var_name))
 
     # if running locally, try keyring first
   } else {
-
     # try keyring
-    kr <- try({
-      var <- keyring::key_get(var_name)
-      TRUE },
-      silent = TRUE)
+    kr <- try(
+      {
+        var <- keyring::key_get(var_name)
+        TRUE
+      },
+      silent = TRUE
+    )
 
     # if keyring worked, return
     if (kr[1] == TRUE) {
@@ -40,30 +40,30 @@ get_env_var <- function(var_name) {
 
       # otherwise, try Sys.getenv
     } else {
-
-      sys_env <- try({
-        var <- Sys.getenv(var_name)
-        TRUE},
-        silent = TRUE)
+      sys_env <- try(
+        {
+          var <- Sys.getenv(var_name)
+          TRUE
+        },
+        silent = TRUE
+      )
 
       # if Sys.gentenv worked, give warning and return
       if (sys_env[1] == TRUE & var != "") {
-
-        warning(glue(
+        warning(glue::glue(
           "variable {var_name} found in Renviron file but not windows credentials. ",
           "Update your process to use keyring and not .Renviron file by doing the ",
           "following: \n",
           " 1. Run: keyring::key_set(service = '{var_name}') \n",
           " 2. Enter the variable value in the text box \n",
           " 3. Delete the variable {var_name} from your .Renviron file \n"
-        )
-        )
+        ))
 
         return(var)
 
         # otherwise, variable not found
       } else {
-        stop(glue("variable {var_name} not found using keyring or Sys.getenv()"))
+        stop(glue::glue("variable {var_name} not found using keyring or Sys.getenv()"))
       }
     }
   }
