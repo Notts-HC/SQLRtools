@@ -31,6 +31,11 @@ test_data <- data.frame(Int_field = 1:200,
 # 1. uploading data ------------------------------------------------------------
 
 testthat::test_that("mssql_server - upload method", {
+  
+  # check encrypt is TRUE
+  expect_true(mssql_serv$encrypt)
+  
+  # check encrypt in
 
   # upload table in one go
   upload_outcome <- mssql_serv$upload(data = test_data,
@@ -242,8 +247,58 @@ testthat::test_that("mssql_server - close connection", {
 })
 
 
+# 6. Connection setting encrypt to FALSE ---------------------------------------
 
+# create mysql server object
+mssql_serv2 <- sql_server$new(
+  driver = "SQL Server",
+  server = get_env_var("MSSQL_SERVER"),
+  database = get_env_var("MSSQL_DATABASE"),
+  encrypt = FALSE
+  )
 
+testthat::test_that("mssql_server - without encryption", {
+  
+  # check encrypt is TRUE
+  expect_false(mssql_serv2$encrypt)
+  
+  # upload table in one go
+  upload_outcome <- mssql_serv2$upload(
+    data = test_data,
+    table_name = test_table_name,
+    close_conn = FALSE
+    )
+
+  # table exists
+  table_exists <- mssql_serv2$table_exists(test_table_name,
+                                          close_conn = FALSE)
+  
+  # n rows
+  table_rows <- mssql_serv2$get(glue("SELECT count(*) as n
+                                    from {test_table_name}"),
+                               close_conn = FALSE) %>%
+    pull(n) %>%
+    as.integer()
+  
+  # field names
+  table_fields <- mssql_serv2$get(glue("SELECT TOP 0 *
+                                    from {test_table_name}"),
+                                 close_conn = FALSE)
+  
+  
+  # tests
+  testthat::expect_equal(upload_outcome, "success")
+  testthat::expect_equal(table_exists, "yes")
+  testthat::expect_equal(table_rows, 200L)
+  testthat::expect_equal(colnames(table_fields), colnames(test_data))
+  
+  # drop table
+  mssql_serv2$drop_table(test_table_name, close_conn = FALSE)
+  
+  # check if it exists
+  testthat::expect_equal("no", mssql_serv2$table_exists(test_table_name))
+  
+})
 
 
 

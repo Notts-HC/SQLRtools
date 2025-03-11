@@ -55,13 +55,16 @@ sql_server <- R6Class("sql_server", public = list(
   #' prem SQL server as will use windows credentials. Do NOT save credentials
   #' in code. Quoted string, default NULL.
   pwd = NULL,
+  
+  #' @field encrypt set whether to include "Encrypt=true;" in connection string. 
+  #' TRUE, default, will include & FALSE will exclude. Logical, default TRUE
+  encrypt = NULL,
 
   #' @field server_type type of connection, set when initialised.
   server_type = NULL,
 
   #' @field conn connection object, set when initialised.
   conn = NULL,
-
 
   #' @description
   #' Create new SQL server connection object.
@@ -72,6 +75,8 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param port port of the database.
   #' @param uid user name for database login.
   #' @param pwd user password for database login.
+  #' @param encrypt set whether to include "Encrypt=true;" in connection string. 
+  #' TRUE, defautl, will include & FALSE will exclude. Logical, default TRUE
   #' @return A new 'SQL server connection' object.
 
   initialize = function(driver,
@@ -79,7 +84,8 @@ sql_server <- R6Class("sql_server", public = list(
                         database,
                         port = NULL,
                         uid = NULL,
-                        pwd = NULL) {
+                        pwd = NULL,
+                        encrypt = TRUE) {
 
     # set up params
     self$driver <- driver
@@ -88,6 +94,7 @@ sql_server <- R6Class("sql_server", public = list(
     self$port <- port
     self$uid <- uid
     self$pwd <- pwd
+    self$encrypt <- encrypt
     self$conn
     self$server_type <- case_when(tolower(self$driver) == "sql server" ~ "mssql",
                                   grepl("mysql", tolower(self$driver)) ~ "mysql",
@@ -130,11 +137,18 @@ sql_server <- R6Class("sql_server", public = list(
       # set connection by server type
       if (self$server_type == "mssql") {
 
+        if (isTRUE(self$encrypt)) {
+          encrypt <-  "Encrypt=true;"
+        } else {
+          encrypt <- ""
+        }
+        
+        
         # set connection string
         conn_string <- paste("driver={", self$driver, "};",
                              "server=", self$server, ";",
                              "database=", database, ";",
-                             "Encrypt=true;",
+                             encrypt,
                              "trusted_connection=true", sep = "")
 
         # set connection
