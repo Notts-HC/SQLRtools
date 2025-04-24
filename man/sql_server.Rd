@@ -38,6 +38,9 @@ code. Quoted string, default NULL.}
 prem SQL server as will use windows credentials. Do NOT save credentials
 in code. Quoted string, default NULL.}
 
+\item{\code{encrypt}}{set whether to include "Encrypt=true;" in connection string.
+TRUE, default, will include & FALSE will exclude. Logical, default TRUE}
+
 \item{\code{server_type}}{type of connection, set when initialised.}
 
 \item{\code{conn}}{connection object, set when initialised.}
@@ -71,7 +74,15 @@ in code. Quoted string, default NULL.}
 \subsection{Method \code{new()}}{
 Create new SQL server connection object.
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{sql_server$new(driver, server, database, port = NULL, uid = NULL, pwd = NULL)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$new(
+  driver,
+  server,
+  database,
+  port = NULL,
+  uid = NULL,
+  pwd = NULL,
+  encrypt = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -88,6 +99,9 @@ Create new SQL server connection object.
 \item{\code{uid}}{user name for database login.}
 
 \item{\code{pwd}}{user password for database login.}
+
+\item{\code{encrypt}}{set whether to include "Encrypt=true;" in connection string.
+TRUE, defautl, will include & FALSE will exclude. Logical, default TRUE}
 }
 \if{html}{\out{</div>}}
 }

@@ -1,4 +1,9 @@
 
+# SQLRtools 0.0.2
+
+Minor update adding in option to remove encryption in the initiation of the
+`sql_server` class object.
+
 # SQLRtools 0.0.1
 
 Initial complete package containing:
