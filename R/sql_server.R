@@ -30,12 +30,18 @@
 
 sql_server <- R6Class("sql_server", public = list(
 
+  
+  #' @field dsn set the Data Source Name (DSN), i.e. the symbolic name that 
+  #' represents a saved ODBC connection. Note that when set, no other inputs
+  #' will be used to make the connection. Leave as NULL, the default, if using
+  #' other method to connect to server. 
+  dsn = NULL,
 
   #' @field driver driver to be used, e.g. "SQL Server". Quoted string,
   #' no default.
   driver = NULL,
 
-  #' @field server server of the database. Quoted string, no default.
+  #' @field server server of the database. Quoted string, default NULL.
   server = NULL,
 
   #' @field database name of the database. Quoted string, no default.
@@ -49,7 +55,6 @@ sql_server <- R6Class("sql_server", public = list(
   #' SQL server as will use windows credentials. Do NOT save credentials in
   #' code. Quoted string, default NULL.
   uid = NULL,
-
 
   #' @field pwd user password for database login. NOT REQUIRED if querying on
   #' prem SQL server as will use windows credentials. Do NOT save credentials
@@ -72,6 +77,7 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param driver driver, e.g. "SQL Server".
   #' @param server server of the database.
   #' @param database name of the database.
+  #' @param dsn Data Source Name.
   #' @param port port of the database.
   #' @param uid user name for database login.
   #' @param pwd user password for database login.
@@ -80,8 +86,9 @@ sql_server <- R6Class("sql_server", public = list(
   #' @return A new 'SQL server connection' object.
 
   initialize = function(driver,
-                        server,
+                        server = NULL,
                         database,
+                        dsn = NULL,
                         port = NULL,
                         uid = NULL,
                         pwd = NULL,
@@ -91,6 +98,7 @@ sql_server <- R6Class("sql_server", public = list(
     self$driver <- driver
     self$server <- server
     self$database <- database
+    self$dsn <- dsn
     self$port <- port
     self$uid <- uid
     self$pwd <- pwd
@@ -133,9 +141,17 @@ sql_server <- R6Class("sql_server", public = list(
     }
 
     if (isFALSE(conn_valid)) {
-
-      # set connection by server type
-      if (self$server_type == "mssql") {
+      
+      
+      # if using DSN
+      if (!is.null(self$dsn)) {
+        
+        # set connection using DSN
+        self$conn <- DBI::dbConnect(odbc::odbc(),
+                                    dsn = self$dsn)
+        
+        # set connection by server type
+      } else if (self$server_type == "mssql") {
 
         if (isTRUE(self$encrypt)) {
           encrypt <-  "Encrypt=true;"
