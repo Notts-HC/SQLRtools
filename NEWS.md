@@ -1,4 +1,9 @@
 
+# SQLRtools 0.0.3
+
+Minor update adding in option to connect to server via a Data Source Name (DSN)
+in the initiation of the `sql_server` class object. 
+
 # SQLRtools 0.0.2
 
 Minor update adding in option to remove encryption in the initiation of the

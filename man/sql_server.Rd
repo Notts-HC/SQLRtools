@@ -20,6 +20,11 @@ Note: all methods are stable other than \code{meta_data} which is experimental.
 \section{Public fields}{
 \if{html}{\out{<div class="r6-fields">}}
 \describe{
+\item{\code{dsn}}{set the Data Source Name (DSN), i.e. the symbolic name that
+represents a saved ODBC connection. Note that when set, no other inputs
+will be used to make the connection. Leave as NULL, the default, if using
+other method to connect to server.}
+
 \item{\code{driver}}{driver to be used, e.g. "SQL Server". Quoted string,
 no default.}
 
@@ -78,6 +83,7 @@ Create new SQL server connection object.
   driver,
   server,
   database,
+  dsn = NULL,
   port = NULL,
   uid = NULL,
   pwd = NULL,
@@ -93,6 +99,8 @@ Create new SQL server connection object.
 \item{\code{server}}{server of the database.}
 
 \item{\code{database}}{name of the database.}
+
+\item{\code{dsn}}{Data Source Name.}
 
 \item{\code{port}}{port of the database.}
 
