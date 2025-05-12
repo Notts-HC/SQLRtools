@@ -38,13 +38,13 @@ sql_server <- R6Class("sql_server", public = list(
   dsn = NULL,
 
   #' @field driver driver to be used, e.g. "SQL Server". Quoted string,
-  #' no default.
+  #' default NULL.
   driver = NULL,
 
-  #' @field server server of the database. Quoted string, no default.
+  #' @field server server of the database. Quoted string, default NULL.
   server = NULL,
 
-  #' @field database name of the database. Quoted string, no default.
+  #' @field database name of the database. Quoted string, default NULL.
   database = NULL,
 
   #' @field port port of the database. Not required if SQL server on prem &
@@ -85,9 +85,9 @@ sql_server <- R6Class("sql_server", public = list(
   #' TRUE, defautl, will include & FALSE will exclude. Logical, default TRUE
   #' @return A new 'SQL server connection' object.
 
-  initialize = function(driver,
-                        server,
-                        database,
+  initialize = function(driver = NULL,
+                        server = NULL,
+                        database = NULL,
                         dsn = NULL,
                         port = NULL,
                         uid = NULL,

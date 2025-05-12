@@ -26,11 +26,11 @@ will be used to make the connection. Leave as NULL, the default, if using
 other method to connect to server.}
 
 \item{\code{driver}}{driver to be used, e.g. "SQL Server". Quoted string,
-no default.}
+default NULL.}
 
-\item{\code{server}}{server of the database. Quoted string, no default.}
+\item{\code{server}}{server of the database. Quoted string, default NULL.}
 
-\item{\code{database}}{name of the database. Quoted string, no default.}
+\item{\code{database}}{name of the database. Quoted string, default NULL.}
 
 \item{\code{port}}{port of the database. Not required if SQL server on prem &
 using user credentials. Quoted string, default NULL.}
@@ -80,9 +80,9 @@ TRUE, default, will include & FALSE will exclude. Logical, default TRUE}
 Create new SQL server connection object.
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{sql_server$new(
-  driver,
-  server,
-  database,
+  driver = NULL,
+  server = NULL,
+  database = NULL,
   dsn = NULL,
   port = NULL,
   uid = NULL,
