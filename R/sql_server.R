@@ -148,6 +148,7 @@ sql_server <- R6Class("sql_server", public = list(
         
         # set connection using DSN
         self$conn <- DBI::dbConnect(odbc::odbc(),
+                                    database = self$database,
                                     dsn = self$dsn)
         
         # set connection by server type
