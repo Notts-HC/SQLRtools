@@ -39,7 +39,7 @@ This package is not on CRAN and can be installed from GitHub using:
 
 ``` r
 
-# install the package (see notes below if this fails)
+# install the package
 pak::pkg_install("Notts-HC/SQLRtools")
 ```
 
@@ -51,7 +51,7 @@ This README has been compiled on the
 
 ``` r
 Sys.time()
-#> [1] "2025-06-02 10:58:33 BST"
+#> [1] "2025-06-02 17:58:37 BST"
 ```
 
 Here are the tests results and package coverage:
@@ -60,7 +60,7 @@ Here are the tests results and package coverage:
 devtools::check(quiet = TRUE)
 #> ℹ Loading SQLRtools
 #> ── R CMD check results ──────────────────────────────────── SQLRtools 0.0.4 ────
-#> Duration: 2m 20.2s
+#> Duration: 1m 51.9s
 #> 
 #> ❯ checking for future file timestamps ... NOTE
 #>   unable to verify current time

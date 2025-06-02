@@ -47,7 +47,7 @@ This package is not on CRAN and can be installed from GitHub using:
 
 ```{r, install, eval=FALSE}
 
-# install the package (see notes below if this fails)
+# install the package
 pak::pkg_install("Notts-HC/SQLRtools")
 
 ```
