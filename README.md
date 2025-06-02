@@ -35,100 +35,23 @@ interacting with the database, including:
 
 ## Installation
 
-This package is currently private and therefore requires a GitHub
-Personal Access Token (PAT) to be set up for an account that has access
-to the NottsHC GitHub organisation on GitHub.
-
-**Important**: your GitHub PAT should be stored in the local Git
-credential store and **not** a local .Renviron file. Further to this,
-the package `keyring` should be used to store credentials used in
-scripts rather than the Renviron file, see recommendations on this
-[here](https://solutions.posit.co/connections/db/best-practices/managing-credentials/).
-Note that the `get_env_var()` function in this package should be used in
-place of the `get_env_var()` function, which uses `keyring` in the
-background and prompts moving from Renviron to `keyring`where relevant.
-
-To create a GitHub PAT (if you don’t have one already):
-
-1.  Go to <https://github.com/settings/tokens> which takes you to your
-    own personal GitHub account settings where you will need to
-    `Generate new token`.
-2.  Give this a suitable name like `Repo access` and tick the `repo`
-    group for full control of private repositories.
-3.  *Remember to copy the code that is generated as this cannot be
-    viewed again*
-
-To set up GitHub PAT in the Git Credential Store & install package:
+This package is not on CRAN and can be installed from GitHub using:
 
 ``` r
-
-# Install required packages
-install.packages("usethis")
-install.packages("gitcreds")
-install.packages("remotes")
-install.packages("pak")
-
-# set up GitHub PAT. Note: if a GitHub PAT has already been saved, the following
-# will give an option to replace the credentials. Run the function, select the 
-# relevant option and update the PAT with the one just copied from GitHub. 
-gitcreds::gitcreds_set()
-
-# Check has been set properly, the below should return a list with details of:
-# protocol, host, username and password. None of these should be NA, the 
-# password should have "<-- hidden -->". 
-gitcreds::gitcreds_get()
-
-# If the above doesn't look correct:
-#  1. Make sure you don't have GITHUB_PAT set in your Renviron file. If you do, 
-#     delete it, restart R, and check it's no longer in use by running
-#     Sys.getenv("GITHUB_PAT"), this should return "". 
-#  2. Delete your GITHUB_PAT on GitHub at https://github.com/settings/tokens and 
-#     re-create the PAT using the instructions above (this may have failed if 
-#     you already had a GitHub PAT set up). 
-
-# If the output of gitcreds::gitcreds_get() still looks incorrect, contact the 
-# author of this package. 
 
 # install the package (see notes below if this fails)
 pak::pkg_install("Notts-HC/SQLRtools")
 ```
 
-If you have a `GITHUB_PAT` set up in the Renviron file **delete it**.
-The following can be used to check this: `get_env_var("GITHUB_PAT")`, it
-should return ““.
-
-Full details on this recommended approach can be found
-[here](https://usethis.r-lib.org/articles/git-credentials.html).
-
-The above should install the package **but will fail if you don’t have
-the correct version of RTools installed to work with your version of
-R**, i.e. if you’ve updated to R v 4.4.1 but still only have RTools4
-you’ll get an error around the version of Rtools or R not being able to
-locate the relevant build tools. A request has been made to IT to update
-the version of RTools available in the software center.
-
-However,the following work around can be used to install with remotes by
-using the GitHub PAT as an environment variable via git credentials:
-
-``` r
-# the following can be used as a work around if pak fails to install the package:
-
-# set the GITHUB_PAT environment vairbale (this will NOT be saved in Renviron):
-Sys.setenv(GITHUB_PAT = gitcreds::gitcreds_get(use_cache = FALSE)$password)
-
-# install using remotes
-remotes::install_github("Notts-HC/SQLRtools")
-```
-
 ## About
 
-You are reading the doc about version: 0.0.1
+You are reading the doc about version: 0.0.4
 
 This README has been compiled on the
 
 ``` r
 Sys.time()
-#> [1] "2024-09-30 13:57:31 BST"
+#> [1] "2025-06-02 10:58:33 BST"
 ```
 
 Here are the tests results and package coverage:
@@ -136,16 +59,19 @@ Here are the tests results and package coverage:
 ``` r
 devtools::check(quiet = TRUE)
 #> ℹ Loading SQLRtools
-#> ── R CMD check results ──────────────────────────────────── SQLRtools 0.0.1 ────
-#> Duration: 1m 37.3s
+#> ── R CMD check results ──────────────────────────────────── SQLRtools 0.0.4 ────
+#> Duration: 2m 20.2s
 #> 
-#> 0 errors ✔ | 0 warnings ✔ | 0 notes ✔
+#> ❯ checking for future file timestamps ... NOTE
+#>   unable to verify current time
+#> 
+#> 0 errors ✔ | 0 warnings ✔ | 1 note ✖
 ```
 
 ``` r
 covr::package_coverage()
-#> SQLRtools Coverage: 94.92%
-#> R/sql_server.R: 94.87%
+#> SQLRtools Coverage: 94.34%
+#> R/sql_server.R: 94.26%
 #> R/utils.R: 95.83%
 ```
 
@@ -221,42 +147,4 @@ my_sql_meta_data <- ms_sql_server$meta_data(database = ms_sql_dbs$name[20],
 
 names(my_sql_meta_data)[1]
 View(my_sql_meta_data[1][[1]])
-```
-
-##### Avoid the “Invalid Descriptor Index” issue
-
-``` r
-
-# create a basic temp table
-my_data <- data.frame(a = c("a", "b", "c"),
-                      b = 1:3)
-
-# upload as a temporary table 
-ms_sql_server$upload(data = my_data,
-                     table_name = "#SQLRtools_example",
-                     close_conn = FALSE)
-
-# change the data type of column a to varchar(max)
-ms_sql_server$run("ALTER TABLE #SQLRtools_example
-                   ALTER COLUMN a varchar(max);",
-                  close_conn = FALSE)
-
-# try extracting the data
-ms_sql_server$get("SELECT * FROM #SQLRtools_example",
-                  close_conn = FALSE)
-
-# use method order_object_fields to avoid issue
-
-# get all the fields ordered by data type
-table_fields <- ms_sql_server$order_object_fields(object = "#SQLRtools_example",
-                                                  close_conn = FALSE)
-
-# now extract all the data
-ms_sql_server$get(glue("SELECT {table_fields} 
-                        FROM #SQLRtools_example"))
-
-# note that the above table only has 2 fields. Where your trying to run 
-# select * on a table with a lot of fields and multiple varchar(max) or 
-# geometry feilds, the above makes life a lot easier (notwithstanding the fact 
-# it's good practice to avoid 'select *' in SQL where possible). 
 ```
