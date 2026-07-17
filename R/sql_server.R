@@ -95,6 +95,10 @@ sql_server <- R6Class("sql_server", public = list(
   #' @field server_type type of connection, set when initialised.
   server_type = NULL,
   
+  #' @field databricks_loc location running databricks connections from (i.e.
+  #' local or on databricks itself), set when initialised.
+  databricks_loc = NULL,
+  
   #' @field conn connection object, set when initialised.
   conn = NULL,
   
@@ -143,11 +147,23 @@ sql_server <- R6Class("sql_server", public = list(
     self$pwd_var <- pwd_var
     self$encrypt <- encrypt
     self$conn
+    self$databricks_loc
+
+    
+    # derive server type
     self$server_type <- case_when(
       tolower(self$driver) == "sql server" ~ "mssql",
       grepl("mysql", self$driver, ignore.case = TRUE) ~ "mysql",
       tolower(self$driver) == "databricks odbc driver" ~ "databricks",
+      tolower(self$driver) == "databricks" ~ "databricks",
       TRUE ~ "other"
+    )
+    
+    # if databricks, set whether local or in databricks
+    self$databricks_loc <- case_when(
+      tolower(self$driver) == "databricks odbc driver" ~ "local",
+      tolower(self$driver) == "databricks" ~ "databricks",
+      TRUE ~ "not applicable"
     )
     
     
@@ -235,19 +251,27 @@ sql_server <- R6Class("sql_server", public = list(
         # 4. Connection for databricks
       } else if (self$server_type == "databricks") {
         
-        # set connection with credentials
-        self$conn <- DBI::dbConnect(
-          drv = odbc::odbc(),
-          Driver = self$driver,
-          Host = self$host,
-          Port = self$port,
-          HTTPPath = self$httppath,
-          SSL = 1,
-          ThriftTransport = 2,
-          AuthMech = 3,
-          UID = "token",
-          PWD = get_env_var(self$pwd_var)
-        )
+        # if local
+        if (self$databricks_loc == "local") {
+          
+          # set connection with credentials
+          self$conn <- DBI::dbConnect(
+            drv = odbc::odbc(),
+            Driver = self$driver,
+            Host = self$host,
+            Port = self$port,
+            HTTPPath = self$httppath,
+            SSL = 1,
+            ThriftTransport = 2,
+            AuthMech = 3,
+            UID = "token",
+            PWD = get_env_var(self$pwd_var)
+          )
+          
+          # else running on databricks, use spark
+        } else {
+          self$conn <- spark_connect(method = "databricks")
+        }
         
       }
     }
