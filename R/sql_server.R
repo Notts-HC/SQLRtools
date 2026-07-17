@@ -71,13 +71,17 @@ sql_server <- R6Class("sql_server", public = list(
   #' when connecting to databricks from local. Quoted string, default NULL. 
   httppath = NULL,
   
-  #' @field uid user name for database login. Not required if querying on prem
+  #' @field uid_var variable name for the user name for database login. Note
+  #' this is the name of the variable when creating it using 
+  #' `keyring::key_set(service = '{var_name}')`. The connection will be made
+  #' using `get_env_var(uid_var)`, and therefore avoid saving the user name
+  #' in the object itself. Not required if querying on prem
   #' SQL server as will use windows credentials. Do NOT save credentials in
   #' code. Quoted string, default NULL.
-  uid = NULL,
+  uid_var = NULL,
   
   #' @field pwd_var variable name for the user password for database login. Note
-  #' this is the name of the vairable when creating it using 
+  #' this is the name of the variable when creating it using 
   #' `keyring::key_set(service = '{var_name}')`. The connection will be made
   #' using `get_env_var(pwd_var)`, and therefore avoid saving the password
   #' in the object itself.  NOT REQUIRED if querying on prem SQL server as will 
@@ -106,7 +110,7 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param port port of the database.
   #' @param host host value, required when connecting to databricks. 
   #' @param httppath HTTPPath value, required when connecting to databrikcs. 
-  #' @param uid user name for database login.
+  #' @param uid_var user name for database login.
   #' @param pwd_var user password for database login.
   #' @param encrypt set whether to include "Encrypt=true;" in connection string. 
   #' TRUE, defautl, will include & FALSE will exclude. Logical, default TRUE
@@ -121,7 +125,7 @@ sql_server <- R6Class("sql_server", public = list(
                         port = NULL,
                         host = NULL, 
                         httppath = NULL,
-                        uid = NULL,
+                        uid_var = NULL,
                         pwd_var = NULL,
                         encrypt = TRUE) {
     
@@ -135,7 +139,7 @@ sql_server <- R6Class("sql_server", public = list(
     self$httppath <- httppath
     self$catalog <- catalog
     self$schema <- schema
-    self$uid <- uid
+    self$uid_var <- uid_var
     self$pwd_var <- pwd_var
     self$encrypt <- encrypt
     self$conn
@@ -222,7 +226,7 @@ sql_server <- R6Class("sql_server", public = list(
           odbc::odbc(),
           Driver = self$driver,
           Server = self$server,
-          UID = self$uid,
+          UID = get_env_var(self$uid_var),
           PWD = get_env_var(self$pwd_var),
           Port = self$port,
           database = database
