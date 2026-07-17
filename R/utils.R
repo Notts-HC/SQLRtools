@@ -129,21 +129,12 @@ upload_to_databricks <- function(
     stop("over 1000 rows, this probably needs loading via databricks")
   }
   
-  if (is.null(catalog)) {
-    catalog <- conn$catalog
-  }
+  if (is.null(catalog)) {catalog <- conn$catalog}
   
-  if (is.null(schema)) {
-    schema <- conn$schema
-  }
+  if (is.null(schema)) {schema <- conn$schema}
   
   check_identifier(catalog)
   check_identifier(schema)
-  
-  # add row id
-  data <- data |> 
-    mutate(row_id = row_number()) |> 
-    select(row_id, everything())
   
   # table exists
   table_exists <- conn$table_exists(
@@ -159,111 +150,162 @@ upload_to_databricks <- function(
     )
   }
   
-  # create table if need to
-  if (table_exists == "no") {
+  # different process depending where running from
+  
+  # when running on databricks
+  if (conn$databricks_loc == "databricks") {
     
-    # code to create fields and data types
-    df_fields <- as.data.frame(
-      sapply(select(data, -row_id), function(x) {class(x)[1]})
-    ) 
-    colnames(df_fields)[1] <- "data_type"
-    df_fields$field <- rownames(df_fields)
+    # function shouldnt be used for creating schemas?
+    #conn$run(glue("CREATE SCHEMA IF NOT EXISTS {catalog}.{schema}"))
     
-    table_fields <- df_fields |> 
-      mutate(
-        data_type = tolower(data_type),
-        sql_data_type = case_when(
-          data_type == "character" ~ "STRING", 
-          data_type == "integer" ~ "INT", 
-          data_type == "logical" ~ "BOOLEAN",
-          data_type == "double" ~ "DOUBLE", 
-          data_type == "numeric" ~ "DOUBLE",
-          data_type == "date" ~ "DATE", 
-          data_type == "factor" ~ "STRING", 
-          data_type == "posixct" ~ "TIMESTAMP",
-          data_type == "posixt" ~ "TIMESTAMP",
-          TRUE ~ "unknown"
-        ),
-        val = paste0(field, " ", sql_data_type)
-      )
+    # note - as char important, spark_write_table disagrees with glue 
+    # objects
+    target_table_name <- as.character(glue("{catalog}.{schema}.{table_name}"))
     
-    failed_data_type <- filter(table_fields, sql_data_type == "unknown")
-    
-    if (nrow(failed_data_type) > 0) {
-      fails <- paste0(unique(failed_data_type$data_type, collapse = ", "))
-      stop(glue("failed to convert data types for: {fails}"))
+    if (append == FALSE) {
+      write_mode <- "error"
+    } else {
+      write_mode <- "append"
     }
     
-    table_fields <- paste0(table_fields$val, collapse = ", \n")
-    
-    # create the table
-    conn$run(
-      glue(
-        "CREATE TABLE {catalog}.{schema}.{table_name} (
-              {table_fields}
-              );"
+    # write table
+    if (inherits(data, "tbl_spark")) {
+      
+      spark_write_table(
+        x = data, 
+        name = target_table_name, 
+        mode = write_mode
       )
-    )
-  }
-  
-  # format data for insert
-  value_data <- data |> 
-    mutate(across(everything(), as.character)) |> 
-    pivot_longer(-row_id) |> 
-    mutate(
-      value = case_when(
-        is.na(value) ~ "NULL",
-        value == "" ~ "NULL", 
-        TRUE ~ as.character(DBI::dbQuoteString(conn$conn, value))
-      ),
-      value = gsub("''", "\\\\'", value)
-    ) |> 
-    group_by(row_id) |> 
-    summarise(val = paste0(value, collapse = ", "),
-              .groups = "drop") |> 
-    mutate(
-      val = paste0("(", val, ")"),
-      row_id = as.integer(row_id), 
-      batch = floor(row_id/batch_upload)
-    ) |> 
-    arrange(row_id)
-  
-  # set up progress bar
-  progress <- 0
-  pb <- txtProgressBar(min = progress,
-                       max = max(unique(value_data$batch)) + 1,
-                       initial = 0,
-                       style = 3)
-  
-  # batch upload
-  for (batch_n in unique(value_data$batch)) {
-    
-    #batch_n <- unique(value_data$batch)[1]
-    
-    batch_vals <- value_data |> 
-      filter(batch == batch_n) |> 
-      pull(val) %>%
-      paste0(., collapse = ", \n")
-    
-    
-    # upload
-    conn$run(
-      glue(
-        "INSERT INTO {catalog}.{schema}.{table_name}
-              VALUES
-              {batch_vals}
-              "
+      
+    } else if (is.data.frame(data)) {
+      
+      spark_df <- SparkR::createDataFrame(data)
+      
+      SparkR::saveAsTable(
+        df = spark_df, 
+        tableName = target_table_name, 
+        mode = write_mode
       )
-    )
+      
+    } else {
+      stop("df must be a Spark-backed tbl_spark or a local data.frame")
+    }
     
-    # update progress bar
-    progress <- progress + 1
-    setTxtProgressBar(pb, progress)
+    # when running locally
+  } else if (conn$databricks_loc == "local") {
     
+    # add row id
+    data <- data |> 
+      mutate(row_id = row_number()) |> 
+      select(row_id, everything())
+    
+    
+    # create table if need to
+    if (table_exists == "no") {
+      
+      # code to create fields and data types
+      df_fields <- as.data.frame(
+        sapply(select(data, -row_id), function(x) {class(x)[1]})
+      ) 
+      colnames(df_fields)[1] <- "data_type"
+      df_fields$field <- rownames(df_fields)
+      
+      table_fields <- df_fields |> 
+        mutate(
+          data_type = tolower(data_type),
+          sql_data_type = case_when(
+            data_type == "character" ~ "STRING", 
+            data_type == "integer" ~ "INT", 
+            data_type == "logical" ~ "BOOLEAN",
+            data_type == "double" ~ "DOUBLE", 
+            data_type == "numeric" ~ "DOUBLE",
+            data_type == "date" ~ "DATE", 
+            data_type == "factor" ~ "STRING", 
+            data_type == "posixct" ~ "TIMESTAMP",
+            data_type == "posixt" ~ "TIMESTAMP",
+            TRUE ~ "unknown"
+          ),
+          val = paste0(field, " ", sql_data_type)
+        )
+      
+      failed_data_type <- filter(table_fields, sql_data_type == "unknown")
+      
+      if (nrow(failed_data_type) > 0) {
+        fails <- paste0(unique(failed_data_type$data_type, collapse = ", "))
+        stop(glue("failed to convert data types for: {fails}"))
+      }
+      
+      table_fields <- paste0(table_fields$val, collapse = ", \n")
+      
+      # create the table
+      conn$run(
+        glue(
+          "CREATE TABLE {catalog}.{schema}.{table_name} (
+                {table_fields}
+                );"
+        )
+      )
+    }
+    
+    # format data for insert
+    value_data <- data |> 
+      mutate(across(everything(), as.character)) |> 
+      pivot_longer(-row_id) |> 
+      mutate(
+        value = case_when(
+          is.na(value) ~ "NULL",
+          value == "" ~ "NULL", 
+          TRUE ~ as.character(DBI::dbQuoteString(conn$conn, value))
+        ),
+        value = gsub("''", "\\\\'", value)
+      ) |> 
+      group_by(row_id) |> 
+      summarise(val = paste0(value, collapse = ", "),
+                .groups = "drop") |> 
+      mutate(
+        val = paste0("(", val, ")"),
+        row_id = as.integer(row_id), 
+        batch = floor(row_id/batch_upload)
+      ) |> 
+      arrange(row_id)
+    
+    # set up progress bar
+    progress <- 0
+    pb <- txtProgressBar(min = progress,
+                         max = max(unique(value_data$batch)) + 1,
+                         initial = 0,
+                         style = 3)
+    
+    # batch upload
+    for (batch_n in unique(value_data$batch)) {
+      
+      #batch_n <- unique(value_data$batch)[1]
+      
+      batch_vals <- value_data |> 
+        filter(batch == batch_n) |> 
+        pull(val) %>%
+        paste0(., collapse = ", \n")
+      
+      
+      # upload
+      conn$run(
+        glue(
+          "INSERT INTO {catalog}.{schema}.{table_name}
+                VALUES
+                {batch_vals}
+                "
+        )
+      )
+      
+      # update progress bar
+      progress <- progress + 1
+      setTxtProgressBar(pb, progress)
+      
+    }
+    
+    # close the progress bar
+    close(pb)
   }
-  
-  # close the progress bar
-  close(pb)
   
 }
 
