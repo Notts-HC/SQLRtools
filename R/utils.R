@@ -72,7 +72,7 @@ get_env_var <- function(var_name) {
 #' Check idetenifier input
 #' 
 #' @param x identifier text. Quoted string, no default
-#' 
+#' @param return set whether to return the value. Logical, default FALSE. 
 
 check_identifier <- function(x, return = FALSE) {
   
