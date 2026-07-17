@@ -9,12 +9,14 @@
 # with a MYSQL server.
 
 # create mysql server object
-mysql_serv <- sql_server$new(driver = "MySQL ODBC 8.0 Unicode Driver",
-                             server = get_env_var("HOST_NAME"),
-                             database = get_env_var("MYSQL_DB"),
-                             port = get_env_var("MYSQL_PORT"),
-                             uid = get_env_var("MYSQL_USER"),
-                             pwd = get_env_var("MYSQL_PASSWORD"))
+mysql_serv <- sql_server$new(
+  driver = "MySQL ODBC 8.0 Unicode Driver",
+  server = get_env_var("HOST_NAME"),
+  database = get_env_var("MYSQL_DB"),
+  port = get_env_var("MYSQL_PORT"),
+  uid_var = "MYSQL_USER",
+  pwd_var = "MYSQL_PASSWORD"
+  )
 
 # set name of test table
 test_table_name <- "SQLRtools_test_table"
@@ -23,13 +25,31 @@ test_table_name <- "SQLRtools_test_table"
 suppressMessages(mysql_serv$drop_table(test_table_name))
 
 # create dummy data to be uploaded
-test_data <- data.frame(Int_field = 1:200,
-                        char_field_1 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
-                        char_field_2 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
-                        date_field = sample(seq(as.Date('2018/01/01'), as.Date('2024/01/01'), by = "day"), 200),
-                        date_time_field = sample(seq(as_datetime('2018-01-01 00:00:00'),
-                                                     as_datetime('2024-01-01 00:00:00'),
-                                                     by = "min"), 200))
+n <- 200
+
+test_data <- data.frame(
+  Int_field = 1:n,
+  char_field_1 = stri_rand_strings(n, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+  char_field_2 = stri_rand_strings(n, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+  date_field = sample(seq(as.Date('2018/01/01'), as.Date('2024/01/01'), by = "day"), n),
+  date_time_field = sample(
+    seq(as_datetime('2018-01-01 00:00:00'),
+        as_datetime('2024-01-01 00:00:00'),
+        by = "min"), n)
+)
+
+test_data <- as.data.frame(
+  apply(test_data, 2, function(x) {x[sample(c(1:n), floor(n/10))] <- NA; x})
+)
+
+test_data <- test_data |> 
+  mutate(
+    Int_field = as.integer(trimws(Int_field)),
+    date_field = as.Date(date_field), 
+    date_time_field = as_datetime(date_time_field)
+  )
+
+test_data$char_field_1[5] <- "special'char"
 
 
 # 1. uploading data ------------------------------------------------------------
@@ -39,7 +59,7 @@ testthat::test_that("mysql_server - upload method", {
   # upload table in one go
   upload_outcome <- mysql_serv$upload(data = test_data,
                                       table_name = test_table_name,
-                                      schema_name = get_env_var("MYSQL_DB"))
+                                      schema = get_env_var("MYSQL_DB"))
 
   # table exists
   table_exists <- mysql_serv$table_exists(test_table_name)
@@ -73,7 +93,7 @@ testthat::test_that("mysql_server - upload method", {
   # append to the data using batch upload of 100 rows at a time
   batch_upload_outcome <- mysql_serv$upload(data = test_data,
                                            table_name = test_table_name,
-                                           schema_name = get_env_var("MYSQL_DB"),
+                                           schema = get_env_var("MYSQL_DB"),
                                            batch_upload = 10,
                                            append_data = TRUE)
 
