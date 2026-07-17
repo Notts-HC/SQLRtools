@@ -1,7 +1,7 @@
 Package: SQLRtools
 Type: Package
 Title: SQL R Tools
-Version: 0.0.4
+Version: 0.0.5.9000
 Author: c(person("Stephen", "Spreadborough", 
           , "stephen.spreadborough@nottshc.nhs.uk ", 
           role = c("aut", "cre")))
@@ -24,7 +24,8 @@ Imports:
     keyring,
     stringi,
     lifecycle,
-    janitor
+    janitor,
+    tidyr
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
