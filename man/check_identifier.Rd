@@ -8,6 +8,8 @@ check_identifier(x, return = FALSE)
 }
 \arguments{
 \item{x}{identifier text. Quoted string, no default}
+
+\item{return}{set whether to return the value. Logical, default FALSE.}
 }
 \description{
 Check idetenifier input
