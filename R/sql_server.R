@@ -29,92 +29,130 @@
 #' @export
 
 sql_server <- R6Class("sql_server", public = list(
-
+  
   
   #' @field dsn set the Data Source Name (DSN), i.e. the symbolic name that 
   #' represents a saved ODBC connection. Note that when set, no other inputs
   #' will be used to make the connection. Leave as NULL, the default, if using
   #' other method to connect to server. 
   dsn = NULL,
-
+  
   #' @field driver driver to be used, e.g. "SQL Server". Quoted string,
   #' no default.
   driver = NULL,
-
+  
   #' @field server server of the database. Quoted string, default NULL.
   server = NULL,
-
+  
   #' @field database name of the database. Quoted string, no default.
   database = NULL,
-
+  
+  #' @field catalog name of the catalog. Note: only used when connecting to
+  #' databricks. If set when initiating the class, this catalog is used by
+  #' default in all methods unless changed/specified otherwise when 
+  #' calling specific methods. Quoted string, default NULL. 
+  catalog = NULL,
+  
+  #' @field schema name of the schema for databricks Note: only used when 
+  #' connecting to databricks. If set when initiating the class, this 
+  #' catalog is used by default in all methods unless changed/specified 
+  #' otherwise when  calling specific methods. Quoted string, default NULL. 
+  schema = NULL,
+  
   #' @field port port of the database. Not required if SQL server on prem &
   #' using user credentials. Quoted string, default NULL.
   port = NULL,
-
+  
+  #' @field host host string for databricks connection. Only required when 
+  #' connecting to databricks from local. Quoted string, default NULL.
+  host = NULL,
+  
+  #' @field httppath HTTPPath string for daabricks connection. Only required 
+  #' when connecting to databricks from local. Quoted string, default NULL. 
+  httppath = NULL,
+  
   #' @field uid user name for database login. Not required if querying on prem
   #' SQL server as will use windows credentials. Do NOT save credentials in
   #' code. Quoted string, default NULL.
   uid = NULL,
-
-  #' @field pwd user password for database login. NOT REQUIRED if querying on
-  #' prem SQL server as will use windows credentials. Do NOT save credentials
-  #' in code. Quoted string, default NULL.
-  pwd = NULL,
+  
+  #' @field pwd_var variable name for the user password for database login. Note
+  #' this is the name of the vairable when creating it using 
+  #' `keyring::key_set(service = '{var_name}')`. The connection will be made
+  #' using `get_env_var(pwd_var)`, and therefore avoid saving the password
+  #' in the object itself.  NOT REQUIRED if querying on prem SQL server as will 
+  #' use windows credentials. Quoted string, default NULL.
+  pwd_var = NULL,
   
   #' @field encrypt set whether to include "Encrypt=true;" in connection string. 
   #' TRUE, default, will include & FALSE will exclude. Logical, default TRUE
   encrypt = NULL,
-
+  
   #' @field server_type type of connection, set when initialised.
   server_type = NULL,
-
+  
   #' @field conn connection object, set when initialised.
   conn = NULL,
-
+  
   #' @description
   #' Create new SQL server connection object.
   #'
   #' @param driver driver, e.g. "SQL Server".
   #' @param server server of the database.
   #' @param database name of the database.
+  #' @param catalog name of the databricks catalog
+  #' @param schema name of the databricks schema
   #' @param dsn Data Source Name.
   #' @param port port of the database.
+  #' @param host host value, required when connecting to databricks. 
+  #' @param httppath HTTPPath value, required when connecting to databrikcs. 
   #' @param uid user name for database login.
-  #' @param pwd user password for database login.
+  #' @param pwd_var user password for database login.
   #' @param encrypt set whether to include "Encrypt=true;" in connection string. 
   #' TRUE, defautl, will include & FALSE will exclude. Logical, default TRUE
   #' @return A new 'SQL server connection' object.
-
+  
   initialize = function(driver,
                         server = NULL,
-                        database,
+                        database = NULL,
+                        catalog = NULL, 
+                        schema = NULL,
                         dsn = NULL,
                         port = NULL,
+                        host = NULL, 
+                        httppath = NULL,
                         uid = NULL,
-                        pwd = NULL,
+                        pwd_var = NULL,
                         encrypt = TRUE) {
-
+    
     # set up params
     self$driver <- driver
     self$server <- server
     self$database <- database
     self$dsn <- dsn
     self$port <- port
+    self$host <- host
+    self$httppath <- httppath
+    self$catalog <- catalog
+    self$schema <- schema
     self$uid <- uid
-    self$pwd <- pwd
+    self$pwd_var <- pwd_var
     self$encrypt <- encrypt
     self$conn
-    self$server_type <- case_when(tolower(self$driver) == "sql server" ~ "mssql",
-                                  grepl("mysql", tolower(self$driver)) ~ "mysql",
-                                  TRUE ~ "other")
-
-
+    self$server_type <- case_when(
+      tolower(self$driver) == "sql server" ~ "mssql",
+      grepl("mysql", self$driver, ignore.case = TRUE) ~ "mysql",
+      tolower(self$driver) == "databricks odbc driver" ~ "databricks",
+      TRUE ~ "other"
+    )
+    
+    
     if (self$server_type == "other") {
-      stop("class only works with MS SQL and MySQL servers, check driver input")
+      stop("class only works with MS SQL, MySQL & databricks, check driver input")
     }
-
+    
   },
-
+  
   #' @description
   #' Sets connection to the database using parameters for class. No further
   #' arguments needed.
@@ -123,27 +161,30 @@ sql_server <- R6Class("sql_server", public = list(
   #'
   #' @param database database to connect to. Quoted string, defaults to
   #' database used to create class.
-
+  
   connect = function(database = self$database) {
-
+    
     # if self$conn is null or invalid, connect/re-connect
     conn_null <- is.null(self$conn)
-
+    
     if (conn_null == "TRUE") {
       conn_valid <- FALSE
     } else {
-        conn_valid <- DBI::dbIsValid(self$conn)
+      conn_valid <- DBI::dbIsValid(self$conn)
     }
     
     # if database is different to self$database, re-connect
-    if (database != self$database) {
-      conn_valid <- FALSE
+    if (conn_valid == TRUE) {
+      if (is.null(database) & is.null(self$database)) {
+        conn_valid <- TRUE
+      } else if (database != self$database) {
+        conn_valid <- FALSE
+      }
     }
-
+    
     if (isFALSE(conn_valid)) {
       
-      
-      # if using DSN
+      # 1. connection using DSN
       if (!is.null(self$dsn)) {
         
         # set connection using DSN
@@ -151,9 +192,9 @@ sql_server <- R6Class("sql_server", public = list(
                                     database = self$database,
                                     dsn = self$dsn)
         
-        # set connection by server type
+        # 2. connection for mssql
       } else if (self$server_type == "mssql") {
-
+        
         if (isTRUE(self$encrypt)) {
           encrypt <-  "Encrypt=true;"
         } else {
@@ -167,41 +208,61 @@ sql_server <- R6Class("sql_server", public = list(
                              "database=", database, ";",
                              encrypt,
                              "trusted_connection=true", sep = "")
-
+        
         # set connection
         self$conn <- odbc::dbConnect(odbc::odbc(),
                                      .connection_string = conn_string,
                                      timeout = 60)
-
-
+        
+        # 3. connection for mysql
       } else if (self$server_type == "mysql") {
-
+        
         # set connection with credentials
-        self$conn <- DBI::dbConnect(odbc::odbc(),
-                                    Driver   = self$driver,
-                                    Server   = self$server,
-                                    UID      = self$uid,
-                                    PWD      = self$pwd,
-                                    Port     = self$port,
-                                    database = database)
+        self$conn <- DBI::dbConnect(
+          odbc::odbc(),
+          Driver = self$driver,
+          Server = self$server,
+          UID = self$uid,
+          PWD = get_env_var(self$pwd_var),
+          Port = self$port,
+          database = database
+        )
+        
+        # 4. Connection for databricks
+      } else if (self$server_type == "databricks") {
+        
+        # set connection with credentials
+        self$conn <- DBI::dbConnect(
+          drv = odbc::odbc(),
+          Driver = self$driver,
+          Host = self$host,
+          Port = self$port,
+          HTTPPath = self$httppath,
+          SSL = 1,
+          ThriftTransport = 2,
+          AuthMech = 3,
+          UID = "token",
+          PWD = get_env_var(self$pwd_var)
+        )
+        
       }
     }
   },
-
+  
   #' @description
   #' Close server connection
   #'
   #' @param close logical, TRUE or FALSE whether to close the connection.
-
+  
   close_connection = function(close = TRUE) {
-
+    
     if (isTRUE(close)) {
       if (DBI::dbIsValid(self$conn)) {
-        dbDisconnect(self$conn)
+        DBI::dbDisconnect(self$conn)
       }
     }
   },
-
+  
   #' @description
   #' Run SQL query and return results to R.
   #'
@@ -211,16 +272,16 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
+  
   get = function(query, close_conn = TRUE) {
-
+    
     self$connect()
     output <- DBI::dbGetQuery(self$conn, query)
     self$close_connection(close_conn)
     return(output)
-
+    
   },
-
+  
   #' @description
   #' Run SQL query on the server without returning results. I.e.
   #' use to run processes on the server (such as creating tables etc),
@@ -232,18 +293,18 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
+  
   run = function(query, close_conn = TRUE) {
-
+    
     self$connect()
     output <- DBI::dbSendStatement(self$conn, query, immediate  = TRUE)
     DBI::dbClearResult(output)
     self$close_connection(close_conn)
-
+    
   },
-
-
-
+  
+  
+  
   #' @description
   #' Check if specified table exists on the server.
   #'
@@ -251,27 +312,64 @@ sql_server <- R6Class("sql_server", public = list(
   #'
   #' @param table_name name of table without syntax (i.e. remove any brackets
   #' or '`'). Quoted string, no default
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
-  table_exists = function(table_name, close_conn = TRUE) {
-
+  
+  table_exists = function(
+    table_name, 
+    catalog = self$catalog, 
+    schema = self$schema,
+    close_conn = TRUE
+  ) {
+  
     # if database is tempdb, check the table name
-    if (self$database == "tempdb") {
-      table_name <- self$temp_table_name(table_name)
+    if (!is.null(self$database)) {
+      if(self$database == "tempdb") {
+        table_name <- self$temp_table_name(table_name)
+      }
     }
-
+    
     self$connect()
-    if(DBI::dbExistsTable(self$conn, table_name)) {
-      self$close_connection(close_conn)
-      return("yes")
-    } else {
-      self$close_connection(close_conn)
-      return("no")
+    
+    if (self$server_type %in% c("mssql", "mysql")) {
+      
+      if (DBI::dbExistsTable(self$conn, table_name)) {
+        self$close_connection(close_conn)
+        return("yes")
+      } else {
+        self$close_connection(close_conn)
+        return("no")
+      }
+      
+    } else if (self$server_type == "databricks") {
+      
+      exists <- self$get(
+        glue(
+          "SELECT EXISTS (
+            SELECT 1
+            FROM {catalog}.information_schema.tables
+            WHERE table_schema = '{schema}'
+            AND table_name = '{tolower(table_name)}'
+          ) AS table_exists;
+          "
+        )
+      )
+      
+      if (exists$table_exists) {
+        return("yes")
+      } else {
+        return("no")
+      }
     }
   },
-
+  
   #' @description
   #' Upload a dataframe to specified database in SQL server. Checks the number
   #' of rows in the tabe after upload and gives indication if sucessful or not.
@@ -281,8 +379,12 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param data data frame to be uploaded. Unquoted string; no default.
   #' @param table_name The name of the table when uploaded. Quoted string; no
   #' default.
-  #' @param schema_name The name of the table schema when uploaded. Quoted
-  #' string; default NULL.
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
   #' @param variable_types Data types, e.g. "nvarchar(50)", "int", "tinyint" etc.
   #' Variable types need to be in the same order as the columns in the data
   #' frame. Quoted string; no default.
@@ -297,145 +399,213 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-  #'
+  
   upload = function(data,
                     table_name,
-                    schema_name = NULL,
+                    catalog = self$catalog, 
+                    schema = self$schema,
                     variable_types = NULL,
                     append_data = FALSE,
                     batch_upload = NULL,
                     close_conn = TRUE) {
-
+    
     # If variable_types is not NULL, make sure same length as number cols in data
     if (!is.null(variable_types)) {
-
+      
       # If not as many as there are columns stop, otherwise name them
       if (length(variable_types) != length(colnames(data))) {
-
+        
         stop(glue("Number of Variable Types specified needs to be the same as ",
                   "the number of columns in the data"))
-
+        
       } else {
-
+        
         # Make variable_types a "named character vector"
         variable_types <- setNames(variable_types, c(colnames(data)))
-
+        
       }
     }
-
+    
     # check batch_upload is correct input
     if (!is.null(batch_upload)) {
       if (!is.numeric(batch_upload)) {
         stop("batch_upload needs to be NULL or an integer")
       }
     }
-
+    
     # Check if table exists and append_data = TRUE
     if (self$table_exists(table_name, close_conn = close_conn) == "yes"
         & append_data == FALSE) {
-
+      
       stop(glue("Table {table_name} already exists. To add data to this table ",
-                 "set append_data to TRUE"))
-
+                "set append_data to TRUE"))
+      
     } else if (self$table_exists(table_name, close_conn = close_conn) == "no"
                & append_data == TRUE) {
-
+      
       append_data <- FALSE
       warning(glue("Append set to TRUE but table doesn't exist. Still run ",
                    "but check outputs"))
-
+      
     }
-
+    
     # get n rows in table to start with
     if (self$table_exists(table_name, close_conn = close_conn) == "no") {
+      
       start_n_rows <- 0
+      
     } else {
-      start_n_rows <- self$get(query = glue("SELECT count(*) AS n
-                                             FROM {table_name}"),
-                               close_conn = close_conn) %>%
+      
+      if (self$server_type == "databricks") {
+        
+        start_n_rows <- self$get(
+          query = glue(
+            "SELECT count(*) AS n FROM {catalog}.{schema}.{table_name}"),
+          close_conn = close_conn
+        ) |> 
+          pull(n)
+        
+        
+      } else {
+      
+      start_n_rows <- self$get(
+        query = glue("SELECT count(*) AS n FROM {table_name}"),
+        close_conn = close_conn
+        ) |> 
         pull(n)
-    }
+        
+      }
 
+    }
+    
     # set connection
     self$connect()
-
+    
     # if batch upload & variable types are not set, set variables types from
     # entire data set now (this avoids DBI::dbWriteTable setting different
     # data types for each batch)
     if (is.null(variable_types) & !is.null(batch_upload) & append_data == FALSE) {
       variable_types <- odbc::dbDataType(self$conn, data)
     }
-
+    
     # set table name formatting depending on server type
     if (self$server_type == "mssql") {
-      tbl_name <- DBI::Id(schema = schema_name,
-                          table = self$temp_table_name(table_name)) #check tt
+      
+      tbl_name <- DBI::Id(
+        schema = schema,
+        table = self$temp_table_name(table_name) #check tt
+      ) 
+      
     } else if (self$server_type == "mysql") {
+      
       tbl_name <- table_name
-    }
-
-    # if not doing in batch, just upload
-    if (is.null(batch_upload)) {
-
-      # Upload to SQL server
-      DBI::dbWriteTable(self$conn,
-                        name = tbl_name,
-                        value = data,
-                        append = append_data,
-                        field.types = variable_types)
-
-      # otherwise run as batches
-    } else {
-
-      # group data
-      data <- data %>%
-        mutate(group = floor(row_number()/batch_upload))
-
-      # set up progress bar
-      progress <- 0
-      pb <- txtProgressBar(min = progress,
-                           max = max(unique(data$group)),
-                           initial = 0,
-                           style = 3)
-
-      # loop through groups
-      for (i in unique(data$group)) {
-
-        data_to_upload <- data %>%
-          filter(group == i) %>%
-          select(-group)
-
-        # unless it's the first loop, set append to true and variable types to NULL
-        if (i != min(unique(data$group))) {
-          append_data <- TRUE
-          variable_types <- NULL
-        }
-
-        # Upload to SQL server
-        DBI::dbWriteTable(self$conn,
-                          name = tbl_name,
-                          value = data_to_upload,
-                          append = append_data,
-                          field.types = variable_types)
-
-        # update progress bar
-        progress <- progress + 1
-        setTxtProgressBar(pb, progress)
+      
+    } else if (self$server_type == "databricks") {
+      
+      if (is.null(catalog)) {
+        stop("databricks connection needs catalog setting")
       }
-
-      # close the progress bar
-      close(pb)
+      
+      if (is.null(catalog)) {
+        stop("databricks connection needs catalog setting")
+      }
+      
     }
-
-    # check number of rows in table
-    table_n_rows <- self$get(glue("SELECT count(*) AS n
+    
+    # if data bricks, use the specific function
+    if (self$server_type == "databricks") {
+      
+      upload_to_databricks(
+        conn = self, 
+        catalog = catalog, 
+        schema = schema,
+        table_name = table_name, 
+        data = data, 
+        append = append_data,
+        batch_upload = 50
+      )
+      
+    } else {
+      
+      # if not doing in batch, just upload
+      if (is.null(batch_upload)) {
+        
+        # Upload to SQL server
+        DBI::dbWriteTable(
+          self$conn,
+          name = tbl_name,
+          value = data,
+          append = append_data,
+          field.types = variable_types
+        )
+        
+        # otherwise run as batches
+      } else {
+        
+        # group data
+        data <- data %>%
+          mutate(group = floor(row_number()/batch_upload))
+        
+        # set up progress bar
+        progress <- 0
+        pb <- txtProgressBar(min = progress,
+                             max = max(unique(data$group)),
+                             initial = 0,
+                             style = 3)
+        
+        # loop through groups
+        for (i in unique(data$group)) {
+          
+          data_to_upload <- data %>%
+            filter(group == i) %>%
+            select(-group)
+          
+          # unless it's the first loop, set append to true and variable types to NULL
+          if (i != min(unique(data$group))) {
+            append_data <- TRUE
+            variable_types <- NULL
+          }
+          
+          # Upload to SQL server
+          DBI::dbWriteTable(self$conn,
+                            name = tbl_name,
+                            value = data_to_upload,
+                            append = append_data,
+                            field.types = variable_types)
+          
+          # update progress bar
+          progress <- progress + 1
+          setTxtProgressBar(pb, progress)
+        }
+        
+        # close the progress bar
+        close(pb)
+      }
+    }
+    
+    if (self$server_type == "databricks") {
+      
+      # check number of rows in table
+      table_n_rows <- self$get(
+        glue("SELECT count(*) AS n FROM {catalog}.{schema}.{table_name}"),
+        close_conn = close_conn) |> 
+        pull(n)
+      
+    } else {
+      
+      # check number of rows in table
+      table_n_rows <- self$get(glue("SELECT count(*) AS n
                                     FROM {table_name}"),
-                             close_conn = close_conn) %>%
-      pull(n)
-
+                               close_conn = close_conn) %>%
+        pull(n)
+      
+    }
+    
+    
+    
     # Close ODBC connection
     self$close_connection(close_conn)
-
+    
     # set output
     if (start_n_rows + nrow(data) == table_n_rows) {
       return("success")
@@ -445,55 +615,132 @@ sql_server <- R6Class("sql_server", public = list(
                   "not equal to n rows now in table in server ({table_n_rows})"))
     }
   },
-
+  
   #' @description
   #' Drop table on server if exists
   #'
   #' `r lifecycle::badge("stable")`
   #'
   #' @param table_name name of table.
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
-  drop_table = function(table_name, close_conn = TRUE) {
-
-    if (self$table_exists(table_name,
-                          close_conn = close_conn) == "yes") {
-
-      self$connect()
-      DBI::dbRemoveTable(self$conn, table_name)
-      self$close_connection(close_conn)
-
-      } else {
-        message(glue("table {table_name} doesn't exist"))
-        }
+  
+  drop_table = function(
+    table_name, 
+    catalog = self$catalog, 
+    schema = self$schema,
+    close_conn = TRUE) {
+    
+    if (self$table_exists(
+      table_name = table_name,
+      catalog = catalog, 
+      schema = schema,
+      close_conn = close_conn) == "yes") {
+      
+      if (self$server_type %in% c("mssql", "mysql")) {
+        
+        self$connect()
+        DBI::dbRemoveTable(self$conn, table_name)
+        self$close_connection(close_conn)
+        
+      } else if (self$server_type == "databricks") {
+        
+        self$run(glue("DROP TABLE {catalog}.{schema}.{table_name}"))
+        
+      }
+      
+    } else {
+      message(glue("table {table_name} doesn't exist"))
+    }
   },
-
-
+  
+  
   #' @description
   #' List all the databases on the server.
   #'
   #' `r lifecycle::badge("stable")`
-
+  
   databases = function() {
-
+    
     if (self$server_type == "mssql") {
-
+      
       query <- "SELECT name FROM sys. databases"
-
+      
     } else if (self$server_type == "mysql") {
-
+      
       query <- "show databases"
-
+      
+    } else {
+      
+      stop(
+        glue("method not applicable to connection type {self$server_type}")
+      )
+      
     }
-
+    
     # return
     return(self$get(query))
-
+    
   },
-
-
+  
+  #' @description
+  #' List catalogs in databricks
+  #' 
+  #' `r lifecycle::badge("stable")`
+  
+  catalogs = function() {
+    
+    if (self$server_type == "databricks") {
+      
+      query <- "SHOW CATALOGS;"
+      
+    } else {
+      
+      stop(
+        glue("method not applicable to connection type {self$server_type}")
+      )
+      
+    }
+    
+    # return
+    return(self$get(query))
+    
+  },
+  
+  #' @description
+  #' List schemas in a given catalog.
+  #'
+  #' `r lifecycle::badge("stable")`
+  #'
+  #' @param catalog The name of the catalog. Quoted string, default
+  #' value from class when initiated. 
+  
+  schemas = function(catalog = self$catalog) {
+    
+    if (self$server_type == "databricks") {
+      
+      query <- glue("SHOW SCHEMAS IN {catalog};")
+      
+    } else {
+      
+      stop(
+        glue("method not applicable to connection type {self$server_type}")
+      )
+      
+    }
+    
+    # return
+    return(self$get(query))
+    
+  },
+  
   #' @description
   #' List tables in a given database on the server. Note that
   #' parameter 'database' can be used here to change to a different database
@@ -506,17 +753,28 @@ sql_server <- R6Class("sql_server", public = list(
   #'
   #' @param database database to list table from. Quoted string, defaults to
   #' database used to create class.
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
-  db_tables = function(database = self$database, close_conn = TRUE) {
-
+  
+  db_tables = function(
+    database = self$database, 
+    catalog = self$catalog, 
+    schema = self$schema,
+    close_conn = TRUE
+  ) {
+    
     # connect to database set for meta data
     self$connect(database = database)
-
+    
     if (self$server_type == "mssql") {
-
+      
       # data
       tables <- self$get("SELECT table_catalog as [database]
                           , table_schema as [schema]
@@ -525,9 +783,9 @@ sql_server <- R6Class("sql_server", public = list(
                           WHERE TABLE_TYPE = 'BASE TABLE'",
                          close_conn = close_conn) %>%
         arrange(table_name)
-
+      
     } else if (self$server_type == "mysql") {
-
+      
       # data
       tables <- self$get(glue("SHOW FULL TABLES IN {database}
                                WHERE TABLE_TYPE LIKE 'BASE TABLE'"),
@@ -535,13 +793,33 @@ sql_server <- R6Class("sql_server", public = list(
         mutate(database = database,
                schema = NA_character_) %>%
         select(-Table_type)
-
+      
       colnames(tables)[1] <- "table_name"
       arrange(tables, table_name)
+      
+    } else if (self$server_type == "databricks") {
+      
+      tables <- self$get(
+        glue("SHOW TABLES IN {catalog}.{schema};"),
+        close_conn = close_conn
+      ) |> 
+        rename(table_name = tableName,
+               schema = database) |>
+        mutate(catalog = catalog) |> 
+        select(catalog, schema, table_name) |> 
+        arrange(catalog, schema, table_name)
+      
+    } else {
+      
+      stop(
+        glue("method not applicable to connection type {self$server_type}")
+      )
+      
     }
+    
     return(tables)
   },
-
+  
   #' @description
   #' List the views in a given database on the server. Note that
   #' parameter 'database' can be used here to change to a difference database
@@ -551,17 +829,27 @@ sql_server <- R6Class("sql_server", public = list(
   #'
   #' @param database database to list views from. Quoted string, defaults to
   #' database used to create class.
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
-  db_views = function(database = self$database,
-                      close_conn = TRUE) {
-
+  
+  db_views = function(
+    database = self$database,
+    catalog = self$catalog, 
+    schema = self$schema,
+    close_conn = TRUE
+  ) {
+    
     self$connect(database = database)
-
+    
     if (self$server_type == "mssql") {
-
+      
       # data
       views <- self$get("SELECT table_catalog as [database]
                          , table_schema as [schema]
@@ -570,9 +858,9 @@ sql_server <- R6Class("sql_server", public = list(
                          WHERE TABLE_TYPE = 'VIEW'",
                         close_conn = close_conn) %>%
         arrange(view_name)
-
+      
     } else if (self$server_type == "mysql") {
-
+      
       # data
       views <- self$get(glue("SHOW FULL TABLES IN {database}
                               WHERE TABLE_TYPE LIKE 'VIEW'"),
@@ -582,44 +870,71 @@ sql_server <- R6Class("sql_server", public = list(
         select(-Table_type)
       colnames(views)[1] <- "view_name"
       views <- arrange(views, view_name)
+      
+    } else if (self$server_type == "databricks") {
+      
+      # data
+      views <- self$get(
+        glue(
+          "SELECT
+          table_catalog,
+          table_schema,
+          table_name
+          FROM {catalog}.information_schema.tables
+          WHERE table_schema = '{schema}'
+          AND table_type = 'VIEW'"),
+        close_conn = close_conn) |> 
+        rename(view_name = table_name,
+               catalog = table_catalog, 
+               schema = table_schema)
+      
+      
+    } else {
+      
+      stop( glue("method not applicable to connection type {self$server_type}"))
+      
     }
-
+    
     # return
     return(views)
   },
-
+  
   #' @description
   #' Get full name of a temp table.
   #'
   #' `r lifecycle::badge("stable")`
   #'
   #' @param x name of the table. Quoted string, no default.
-
+  
   temp_table_name = function(x) {
-
+    
+    if (!(self$server_type %in% c("mssql", "mysql"))) {
+      stop( glue("method not applicable to connection type {self$server_type}"))
+    }
+    
     if (substr(x, 1, 1) == "#") {
-
+      
       temp_table <- self$db_tables(database = "tempdb",
                                    close_conn = FALSE) %>%
         filter(grepl(paste0(x, "_"), table_name) |
                  x == table_name) %>%
         pull(table_name)
-
+      
       if (length(temp_table) == 1) {
         return(temp_table)
-
+        
       } else {
-
+        
         # if not found any matches, assume doesn't exist or is not a temp table
         # and therefore return original name
         return(x)
       }
     }
-
+    
     # otherwise return intput
     return(x)
   },
-
+  
   #' @description
   #' SQL returns error "Invalid Descriptor Index" when reading in data that
   #' contains fields with data types varbinary(max), varchar(max) or geometry
@@ -637,19 +952,24 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
-
+  
+  
   order_object_fields = function(database = self$database, object, close_conn = TRUE) {
-
+    
+    
+    if (!(self$server_type %in% c("mssql", "mysql"))) {
+      stop( glue("method not applicable to connection type {self$server_type}"))
+    }
+    
     self$connect(database = database)
-
+    
     # if object is temp table, get the full name
     if (substr(object, 1, 1) == "#") {
       object <- self$temp_table_name(object)
     }
-
+    
     if (self$server_type == "mssql") {
-
+      
       # get fields & data types
       data_types <- self$get(glue("SELECT column_name
                                   , data_type
@@ -661,18 +981,18 @@ sql_server <- R6Class("sql_server", public = list(
                order = case_when(character_maximum_length == -1L ~ 99999L,
                                  TRUE ~ row_id)) %>%
         arrange(order)
-
+      
       # return
       return(paste0(data_types$column_name, collapse = ", "))
-
-
+      
+      
     } else if (self$server_type == "mysql") {
-
+      
       stop("function not required for My SQL databases")
-
+      
     }
   },
-
+  
   #' @description
   #' List of fields in an object (i.e. table/field).
   #'
@@ -680,55 +1000,83 @@ sql_server <- R6Class("sql_server", public = list(
   #'
   #' @param database database with tables/views to fields from. Quoted
   #' string, defaults to database used to create class.
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
   #' @param objects vector with table(s) and/or view(s) to get fields from.
   #' Quoted string, default NULL includes all the tables & views in the database
   #' (that have permissions to).
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
-  object_fields = function(database = self$database,
-                           objects = NULL,
-                           close_conn = TRUE) {
-
+  
+  object_fields = function(
+    database = self$database,
+    catalog = self$catalog, 
+    schema = self$schema,
+    objects = NULL,
+    close_conn = TRUE
+  ) {
+    
     self$connect(database = database)
-
+    
     # if not given any objects, use them all
     if (is.null(objects)) {
       objects <- c(self$db_views(database = database, close_conn)$view_name,
                    self$db_tables(database = database, close_conn)$table_name)
     }
-
+    
     # create list
     field_list <- list()
-
-    # get fields for each object
-    for (obj in objects) {
-
-      obj_name <- self$temp_table_name(obj)
-
-      obj_field_query <- glue("SELECT column_name as col_name
+    
+    if (self$server_type %in% c("mssql", "mysql")) {
+      
+      # get fields for each object
+      for (obj in objects) {
+        
+        obj_name <- self$temp_table_name(obj)
+        
+        obj_field_query <- glue("SELECT column_name as col_name
                                FROM INFORMATION_SCHEMA.COLUMNS
                                WHERE TABLE_NAME = '{obj_name}'
                                AND TABLE_SCHEMA = '{database}'")
-
-      # if MS SQL server, remove reference to TABLE_SCHEMA
-      if (self$server_type %in% "mssql") {
-        obj_field_query <- gsub("AND TABLE_SCHEMA",
-                                " -- AND TABLE_SCHEMA",
-                                obj_field_query)
+        
+        # if MS SQL server, remove reference to TABLE_SCHEMA
+        if (self$server_type %in% "mssql") {
+          obj_field_query <- gsub("AND TABLE_SCHEMA",
+                                  " -- AND TABLE_SCHEMA",
+                                  obj_field_query)
+        }
+        
+        field_list[[obj]] <- self$get(obj_field_query,
+                                      close_conn = close_conn) %>%
+          pull(col_name)
       }
-
-      field_list[[obj]] <- self$get(obj_field_query,
-                                    close_conn = close_conn) %>%
-        pull(col_name)
+      
+    } else if (self$server_type == "databricks") {
+      
+      # get fields for each object
+      for (obj in objects) {
+        
+        obj_field_query <- glue("DESCRIBE {catalog}.{schema}.{obj};")
+        
+        field_list[[obj]] <- self$get(obj_field_query,
+                                      close_conn = close_conn) |> 
+          pull(col_name)
+      }
+      
+    } else {
+      stop( glue("method not applicable to connection type {self$server_type}"))
     }
-
+    
     # return
     return(field_list)
   },
-
-
+  
+  
   #' @description
   #' Create meta data from specified objects Defaults to all the objects
   #' in the given databases, otherwise specify a list of specific objects to
@@ -769,7 +1117,7 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
-
+  
   meta_data = function(database = self$database,
                        objects = NULL,
                        details = FALSE,
@@ -778,14 +1126,18 @@ sql_server <- R6Class("sql_server", public = list(
                        date_field = NULL,
                        close_conn = TRUE) {
     
+    if (!(self$server_type %in% c("mssql", "mysql"))) {
+      stop( glue("method not applicable to connection type {self$server_type}"))
+    }
+    
     # set database in connection
     self$connect(database = database)
-
+    
     # make sure row_limit is integer
     if (!is.null(row_limit)) {
       row_limit <- as.integer(row_limit)
     }
-
+    
     # set data filter
     if (!is.null(date_filter) & !is.null(date_field)) {
       if (self$server_type == "mysql") {
@@ -798,7 +1150,7 @@ sql_server <- R6Class("sql_server", public = list(
     } else {
       date_filter <- ""
     }
-
+    
     # set order by
     if (is.null(row_limit)) {
       order_by <- ""
@@ -814,33 +1166,33 @@ sql_server <- R6Class("sql_server", public = list(
     } else if (!is.null(row_limit) & is.null(date_field)) {
       message("row_limit not applied when date_field is null")
     }
-
+    
     # get list of all objects
-    db_objects <- rbind(self$db_views(database = database, close_conn) %>%
+    db_objects <- rbind(self$db_views(database = database, close_conn = close_conn) %>%
                           rename(obj_name = view_name) %>%
                           mutate(type = "view"),
-                        self$db_tables(database = database, close_conn) %>%
+                        self$db_tables(database = database, close_conn = close_conn) %>%
                           rename(obj_name = table_name) %>%
                           mutate(type = "user_table"))
-
+    
     # if object supplied, filter db_objects for them
     if (!is.null(objects)) {
-
+      
       # for each object, check if temp table and get full name if so
       objects <- sapply(objects, function(x) {
         if (substr(x, 1, 1) == "#") {
           return(self$temp_table_name(x))
         } else {
-            return(x)
-          }
-        }) %>%
+          return(x)
+        }
+      }) %>%
         unname()
-
+      
       objects <- filter(db_objects, obj_name %in% objects)
     } else {
       objects <- db_objects
     }
-
+    
     # add in fields & syntax for SQL (important if table names have spaces)
     objects <- objects %>%
       mutate(obj_name_ = case_when(self$server_type == "mysql" ~ glue("`{obj_name}`"),
@@ -852,24 +1204,24 @@ sql_server <- R6Class("sql_server", public = list(
                                     obj_name_),
              field_id = row_number()) %>%
       select(-schema_, -obj_name_)
-
+    
     # create list
     field_list <- list()
-
+    
     # for each object
     for (id in objects$field_id) {
-
+      
       #id <- objects$field_id[1]
       obj_ref <- filter(objects, field_id == id)
       obj <- obj_ref$obj_name
       obj_full_name <- obj_ref$full_obj_name
       print(obj)
-
+      
       # get fields
       fields <- self$object_fields(database = database,
                                    objects = obj,
                                    close_conn = close_conn)[[1]]
-
+      
       # write query
       obj_md_query <- glue("SELECT COLUMN_NAME as col_name
                           , IS_NULLABLE as nullable
@@ -880,7 +1232,7 @@ sql_server <- R6Class("sql_server", public = list(
                           FROM INFORMATION_SCHEMA.COLUMNS
                           WHERE TABLE_NAME = '{obj}'
                           AND TABLE_SCHEMA = '{database}'")
-
+      
       # if MS SQL server, remove reference to TABLE_SCHEMA
       if (self$server_type %in% "mssql") {
         obj_md_query <- gsub("AND TABLE_SCHEMA",
@@ -891,7 +1243,7 @@ sql_server <- R6Class("sql_server", public = list(
       
       # set database in connection
       self$connect(database = database)
-
+      
       # get basic meta from SQL
       obj_MD <- self$get(obj_md_query,
                          close_conn = close_conn) %>%
@@ -900,10 +1252,10 @@ sql_server <- R6Class("sql_server", public = list(
                col_type = glue("{data_type}{max_len}"),
                nullable = tolower(nullable)) %>%
         select(col_name, data_type, col_type, everything(), -max_len)
-
+      
       # get indexes
       if (self$server_type == "mssql") {
-
+        
         indexes <- self$get(glue("select *
                              from sys.indexes
                              where object_id = (select top 1 object_id
@@ -916,9 +1268,9 @@ sql_server <- R6Class("sql_server", public = list(
           select(name) %>%
           rename(col_name = name) %>%
           mutate(index = "yes")
-
+        
       } else if (self$server_type == "mysql") {
-
+        
         indexes <- self$get(glue("SHOW INDEX FROM {obj_full_name}"),
                             close_conn = close_conn) %>%
           janitor::clean_names() %>%
@@ -926,16 +1278,16 @@ sql_server <- R6Class("sql_server", public = list(
           rename(col_name = column_name) %>%
           mutate(index = "yes")
       }
-
+      
       # add index details
       obj_MD <- left_join(obj_MD, indexes, by = "col_name")
-
+      
       # add further details
       if (details == "TRUE") {
-
+        
         # record further info on fields
         obj_details <- data.frame()
-
+        
         # get first date time field if date field not provided
         if (is.null(date_field)) {
           date_field_null_calc <- obj_MD %>%
@@ -949,52 +1301,52 @@ sql_server <- R6Class("sql_server", public = list(
         } else {
           date_field_null_calc <- date_field
         }
-
+        
         # create temp table from main dataset
         temp_table <- glue("meta_temp_{gsub('[[:punct:] ]+','', now())}")
-
+        
         if (self$server_type == "mysql") {
-
+          
           temp_table <- glue("{database}.{temp_table}")
-
+          
           self$run(glue("CREATE TEMPORARY TABLE {temp_table}
                          SELECT {top_n_rows} *
                          FROM {obj_full_name}
                          {date_filter}
                          {order_by}"),
                    close_conn = FALSE)
-
+          
         } else if (self$server_type == "mssql") {
-
+          
           temp_table <- glue("#{temp_table}")
           self$connect()
           DBI::dbExecute(self$conn,
-                               glue("SELECT {top_n_rows} *
+                         glue("SELECT {top_n_rows} *
                                      INTO {temp_table}
                                      FROM {obj_full_name}
                                      {date_filter}
                                      {order_by}"),
                          immediate = TRUE)
         }
-
+        
         # number of rows
         n_rows <- self$get(glue("SELECT count(*) as n
                                  FROM {temp_table}"),
                            close_conn = FALSE) %>%
           pull(n)
-
+        
         # set progress bar
         i <- 0
         pb <- txtProgressBar(min = i, max = length(fields), initial = 0)
-
+        
         # loop through fields and get relevant details
         for (field in fields) {
-
+          
           #field <- fields[1]
-
+          
           tidy_field <- case_when(self$server_type == "mssql" ~ glue("[{field}]"),
                                   self$server_type == "mysql" ~ glue("`{field}`"))
-
+          
           # percent complete
           proportion_complete <- self$get(glue("SELECT count(*) as n, completed
                                                from (
@@ -1012,7 +1364,7 @@ sql_server <- R6Class("sql_server", public = list(
             tidyr::pivot_wider(values_from = "n", names_from = "completed") %>%
             mutate(proportion_complete = complete/(missing+complete)) %>%
             pull(proportion_complete)
-
+          
           # number of unique values
           n_unique_vals <- self$get(glue("SELECT count(*) as n
                                     from (
@@ -1023,14 +1375,14 @@ sql_server <- R6Class("sql_server", public = list(
                                     "),
                                     close_conn = FALSE) %>%
             pull(n)
-
+          
           # calculate proportion of completed values are unique
           prop_completed_vals_unique <- n_unique_vals/(n_rows*proportion_complete)
           prop_completed_vals_unique <- round(prop_completed_vals_unique, 3)
-
+          
           # tidy perc_complete
           prop_complete <- round(proportion_complete, 3)
-
+          
           # if have a date field, get the date of the last non-null record
           if (!is.null(date_field_null_calc)) {
             date_of_last_non_null <- self$get(glue("SELECT max({date_field_null_calc}) as max_date
@@ -1042,7 +1394,7 @@ sql_server <- R6Class("sql_server", public = list(
           } else {
             date_of_last_non_null <- NA_character_
           }
-
+          
           # add to data frame
           obj_details <- rbind(obj_details,
                                data.frame(col_name = field,
@@ -1051,16 +1403,16 @@ sql_server <- R6Class("sql_server", public = list(
                                           prop_completed_vals_unique = prop_completed_vals_unique,
                                           date_last_non_null_value = date_of_last_non_null,
                                           n_rows = n_rows))
-
+          
           # update progress bar
           i <- i + 1
           setTxtProgressBar(pb, i)
         }
-
+        
         # join to main meta data and add fields
         obj_MD <- obj_MD %>%
           left_join(obj_details, by = "col_name")
-
+        
         # drop temporary table if exists
         if (self$server_type == "mysql") {
           if (self$table_exists(temp_table) == "yes") {
@@ -1068,15 +1420,15 @@ sql_server <- R6Class("sql_server", public = list(
           }
         }
       }
-
+      
       # add the object meta data to the meta data list
       field_list[[obj]] <- obj_MD
     }
-
+    
     # return data
     return(field_list)
   }
-
+  
 ))
 
 
