@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{check_identifier}
 \alias{check_identifier}
-\title{Check idetenifier input}
+\title{Check identifier input}
 \usage{
 check_identifier(x, return = FALSE)
 }
@@ -12,5 +12,5 @@ check_identifier(x, return = FALSE)
 \item{return}{set whether to return the value. Logical, default FALSE.}
 }
 \description{
-Check idetenifier input
+Check identifier input
 }
