@@ -25,7 +25,8 @@ Imports:
     stringi,
     lifecycle,
     janitor,
-    tidyr
+    tidyr,
+    sparklyr
 Suggests: 
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
