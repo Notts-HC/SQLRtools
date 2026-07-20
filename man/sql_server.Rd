@@ -71,6 +71,9 @@ TRUE, default, will include & FALSE will exclude. Logical, default TRUE}
 
 \item{\code{server_type}}{type of connection, set when initialised.}
 
+\item{\code{databricks_loc}}{location running databricks connections from (i.e.
+local or on databricks itself), set when initialised.}
+
 \item{\code{conn}}{connection object, set when initialised.}
 }
 \if{html}{\out{</div>}}
