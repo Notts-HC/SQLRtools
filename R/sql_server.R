@@ -1,4 +1,7 @@
 
+# Define the R6 object - this is copied directly from SQLRtools for moment
+# whilst develping it
+
 #' @title R6 Class representing a SQL Server
 #'
 #' @description
@@ -148,7 +151,7 @@ sql_server <- R6Class("sql_server", public = list(
     self$encrypt <- encrypt
     self$conn
     self$databricks_loc
-
+    
     
     # derive server type
     self$server_type <- case_when(
@@ -356,7 +359,7 @@ sql_server <- R6Class("sql_server", public = list(
     schema = self$schema,
     close_conn = TRUE
   ) {
-  
+    
     # if database is tempdb, check the table name
     if (!is.null(self$database)) {
       if(self$database == "tempdb") {
@@ -495,15 +498,15 @@ sql_server <- R6Class("sql_server", public = list(
         
         
       } else {
-      
-      start_n_rows <- self$get(
-        query = glue("SELECT count(*) AS n FROM {table_name}"),
-        close_conn = close_conn
+        
+        start_n_rows <- self$get(
+          query = glue("SELECT count(*) AS n FROM {table_name}"),
+          close_conn = close_conn
         ) |> 
-        pull(n)
+          pull(n)
         
       }
-
+      
     }
     
     # set connection
@@ -1458,8 +1461,4 @@ sql_server <- R6Class("sql_server", public = list(
   }
   
 ))
-
-
-
-
 
