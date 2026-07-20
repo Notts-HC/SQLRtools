@@ -4,7 +4,7 @@
 ![](https://img.shields.io/badge/lifecycle-Stable-green.svg)
 
 The aim of this package is to provide functionality to support working
-with MSSQL and MYSQL databases from R.
+with MSSQL, databricks and MYSQL databases from R.
 
 The package currently contains one R6 class object that is used to
 connect with a given SQL database and provides several methods for
@@ -51,7 +51,7 @@ This README has been compiled on the
 
 ``` r
 Sys.time()
-#> [1] "2025-06-02 17:58:37 BST"
+#> [1] "2026-07-20 15:33:37 BST"
 ```
 
 Here are the tests results and package coverage:
@@ -59,20 +59,17 @@ Here are the tests results and package coverage:
 ``` r
 devtools::check(quiet = TRUE)
 #> ℹ Loading SQLRtools
-#> ── R CMD check results ──────────────────────────────────── SQLRtools 0.0.4 ────
-#> Duration: 1m 51.9s
+#> ── R CMD check results ─────────────────────────────── SQLRtools 1.0.0.9000 ────
+#> Duration: 13m 13.9s
 #> 
-#> ❯ checking for future file timestamps ... NOTE
-#>   unable to verify current time
-#> 
-#> 0 errors ✔ | 0 warnings ✔ | 1 note ✖
+#> 0 errors ✔ | 0 warnings ✔ | 0 notes ✔
 ```
 
 ``` r
 covr::package_coverage()
-#> SQLRtools Coverage: 94.34%
-#> R/sql_server.R: 94.26%
-#> R/utils.R: 95.83%
+#> SQLRtools Coverage: 85.97%
+#> R/utils.R: 75.84%
+#> R/sql_server.R: 88.65%
 ```
 
 ## Using the package

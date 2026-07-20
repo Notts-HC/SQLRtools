@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 ![](https://img.shields.io/badge/lifecycle-Stable-green.svg)
 
 The aim of this package is to provide functionality to support working with 
-MSSQL and MYSQL databases from R.
+MSSQL, databricks and MYSQL databases from R.
 
 The package currently contains one R6 class object that is used to connect with
 a given SQL database and provides several methods for interacting with the 
@@ -55,7 +55,7 @@ pak::pkg_install("Notts-HC/SQLRtools")
 
 ## About
 
-You are reading the doc about version: 0.0.4
+You are reading the doc about version: 1.0.0.9000
 
 This README has been compiled on the
 
