@@ -69,7 +69,7 @@ get_env_var <- function(var_name) {
   }
 }
 
-#' Check idetenifier input
+#' Check identifier input
 #' 
 #' @param x identifier text. Quoted string, no default
 #' @param return set whether to return the value. Logical, default FALSE. 
@@ -115,6 +115,7 @@ check_identifier <- function(x, return = FALSE) {
 #' the number of rows uploaded is as expected. Numeric, default NULL.
 #' 
 #' @importFrom tidyr pivot_longer
+#' @importFrom sparklyr sdf_copy_to spark_write_table
 
 upload_to_databricks <- function(
     conn, 
@@ -125,7 +126,8 @@ upload_to_databricks <- function(
     append = FALSE,
     batch_upload = 50) {
   
-  if (nrow(data) > 1000) {
+  
+  if (nrow(data) > 1000 & conn$databricks_loc != "databricks") {
     stop("over 1000 rows, this probably needs loading via databricks")
   }
   
@@ -168,28 +170,45 @@ upload_to_databricks <- function(
       write_mode <- "append"
     }
     
-    # write table
-    if (inherits(data, "tbl_spark")) {
+    # note: use sparklyr for this (SparkR not available in later version
+    # of R)
+    if (is.data.frame(data)) {
       
-      spark_write_table(
-        x = data, 
-        name = target_table_name, 
-        mode = write_mode
-      )
+      if (is.null(catalog)) {
+        stop("catalog needs to be set when writing table in databricks")
+      }
       
-    } else if (is.data.frame(data)) {
+      if (is.null(schema)) {
+        stop("schema needs to be set when writing table in databricks")
+      }
       
-      spark_df <- SparkR::createDataFrame(data)
+      conn$run(glue("USE CATALOG {catalog}"))
+      conn$run(glue("USE SCHEMA {schema}"))
       
-      SparkR::saveAsTable(
-        df = spark_df, 
-        tableName = target_table_name, 
-        mode = write_mode
+      conn$connect()
+      
+      tbl_spark_data <- sparklyr::sdf_copy_to(
+        conn$conn, 
+        data, 
+        overwrite = TRUE # looks like a temp table is stored, so replace if so (above handles over writing actual table)
       )
       
     } else {
+      
+      tbl_spark_data <- data
+      
+    }
+    
+    if (!inherits(tbl_spark_data, "tbl_spark")) {
       stop("df must be a Spark-backed tbl_spark or a local data.frame")
     }
+    
+    # write table
+    sparklyr::spark_write_table(
+      x = tbl_spark_data, 
+      name = table_name, 
+      mode = write_mode
+    )
     
     # when running locally
   } else if (conn$databricks_loc == "local") {
