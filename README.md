@@ -45,13 +45,13 @@ pak::pkg_install("Notts-HC/SQLRtools")
 
 ## About
 
-You are reading the doc about version: 0.0.4
+You are reading the doc about version: 1.0.0.9000
 
 This README has been compiled on the
 
 ``` r
 Sys.time()
-#> [1] "2026-07-20 15:33:37 BST"
+#> [1] "2026-07-21 15:44:32 BST"
 ```
 
 Here are the tests results and package coverage:
@@ -60,16 +60,16 @@ Here are the tests results and package coverage:
 devtools::check(quiet = TRUE)
 #> ℹ Loading SQLRtools
 #> ── R CMD check results ─────────────────────────────── SQLRtools 1.0.0.9000 ────
-#> Duration: 13m 13.9s
+#> Duration: 12m 24.8s
 #> 
 #> 0 errors ✔ | 0 warnings ✔ | 0 notes ✔
 ```
 
 ``` r
 covr::package_coverage()
-#> SQLRtools Coverage: 85.97%
+#> SQLRtools Coverage: 83.02%
 #> R/utils.R: 75.84%
-#> R/sql_server.R: 88.65%
+#> R/sql_server.R: 84.65%
 ```
 
 ## Using the package
