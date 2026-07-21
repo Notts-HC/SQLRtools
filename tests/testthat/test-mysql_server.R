@@ -22,7 +22,7 @@ mysql_serv <- sql_server$new(
 test_table_name <- "SQLRtools_test_table"
 
 # make sure table doesn't exist before running
-suppressMessages(mysql_serv$drop_table(test_table_name))
+mysql_serv$drop_table(test_table_name)
 
 # create dummy data to be uploaded
 n <- 200
@@ -63,6 +63,20 @@ testthat::test_that("mysql_server - upload method", {
 
   # table exists
   table_exists <- mysql_serv$table_exists(test_table_name)
+  
+  # rename table
+  new_tbl_nm <- glue("{test_table_name}_renamed")
+  mysql_serv$rename_table(test_table_name, new_tbl_nm)
+  
+  ori_after_rename_exists <- mysql_serv$table_exists(test_table_name)
+  renamed_exists <- mysql_serv$table_exists(new_tbl_nm)
+  
+  # revert
+  mysql_serv$rename_table(new_tbl_nm, test_table_name)
+  
+  rename_exists_after_revert <- mysql_serv$table_exists(new_tbl_nm)
+  ori_exists_after_revert <- mysql_serv$table_exists(test_table_name)
+  
 
   # n rows
   table_rows <- mysql_serv$get(glue("SELECT count(*) as n
@@ -75,10 +89,13 @@ testthat::test_that("mysql_server - upload method", {
                                     from {test_table_name}
                                     LIMIT 0"))
 
-
   # tests
   testthat::expect_equal(upload_outcome, "success")
   testthat::expect_equal(table_exists, "yes")
+  testthat::expect_equal(ori_after_rename_exists, "no")
+  testthat::expect_equal(renamed_exists, "yes")
+  testthat::expect_equal(rename_exists_after_revert, "no")
+  testthat::expect_equal(ori_exists_after_revert, "yes")
   testthat::expect_equal(table_rows, 200L)
   testthat::expect_equal(colnames(table_fields), colnames(test_data))
 
@@ -193,7 +210,40 @@ testthat::test_that("mysql_server - meta data", {
 
 })
 
-# 4. Dropping table ------------------------------------------------------------
+
+# 4. Replace the table ---------------------------------------------------------
+
+testthat::test_that("mssql_server - replace_db_table", {
+  
+  n_rows_current_table <- mysql_serv$get(
+    glue(
+      "SELECT count(*) as n
+      from {test_table_name}")
+    ) %>%
+    pull(n) %>%
+    as.integer()
+  
+  # replace with original test data
+  replace_table <- mysql_serv$replace_db_table(
+    data = test_data,
+    table_name = test_table_name
+  )
+  
+  n_rows_replaced_table <- mysql_serv$get(
+    glue(
+      "SELECT count(*) as n
+      from {test_table_name}")
+  ) %>%
+    pull(n) %>%
+    as.integer()
+  
+  expect_equal(n_rows_current_table, 400)
+  expect_match(replace_table, "success")
+  expect_equal(n_rows_replaced_table, 200)
+  
+})
+
+# 5. Dropping table ------------------------------------------------------------
 
 testthat::test_that("mysql_server - drop table", {
 
@@ -206,7 +256,7 @@ testthat::test_that("mysql_server - drop table", {
 })
 
 
-# 5. drop connection -----------------------------------------------------------
+# 6. drop connection -----------------------------------------------------------
 
 testthat::test_that("mysql_serv - close connection", {
 

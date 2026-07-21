@@ -62,6 +62,16 @@ testthat::test_that("mssql_server - upload method", {
   # table exists
   table_exists <- mssql_serv$table_exists(test_table_name,
                                           close_conn = FALSE)
+  
+  
+  # rename table should error (temp table)
+  expect_error(
+    mssql_serv$rename_table(
+      test_table_name, 
+      "#new_temp_table", 
+      close_conn = FALSE
+      )
+  )
 
   # n rows
   table_rows <- mssql_serv$get(glue("SELECT count(*) as n
@@ -232,6 +242,7 @@ testthat::test_that("mssql_server - meta data", {
 
   testthat::expect_true(is.na(meta_data3$date_last_non_null_value[1]))
 })
+
 
 # 4. Drop table ----------------------------------------------------------------
 

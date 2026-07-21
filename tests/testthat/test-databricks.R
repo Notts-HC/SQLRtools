@@ -23,7 +23,7 @@ databricks_serv <- sql_server$new(
 test_table_name <- tolower("SQLRtools_temp_table")
 
 # make sure table doesn't exist before running
-suppressMessages(databricks_serv$drop_table(test_table_name))
+databricks_serv$drop_table(test_table_name)
 
 # create dummy data to be uploaded
 n <- 50
@@ -61,12 +61,28 @@ testthat::test_that("databricks_server - upload method", {
   upload_outcome <- databricks_serv$upload(
     data = test_data,
     table_name = test_table_name,
+    batch_upload = 10,
     close_conn = FALSE
     )
 
   # table exists
   table_exists <- databricks_serv$table_exists(test_table_name,
                                           close_conn = FALSE)
+  
+  
+  # rename table
+  new_tbl_nm <- glue("{test_table_name}_renamed")
+  suppressMessages(databricks_serv$drop_table(new_tbl_nm))
+  databricks_serv$rename_table(test_table_name, new_tbl_nm)
+  
+  ori_after_rename_exists <- databricks_serv$table_exists(test_table_name)
+  renamed_exists <- databricks_serv$table_exists(new_tbl_nm)
+  
+  # revert
+  databricks_serv$rename_table(new_tbl_nm, test_table_name)
+  
+  rename_exists_after_revert <- databricks_serv$table_exists(new_tbl_nm)
+  ori_exists_after_revert <- databricks_serv$table_exists(test_table_name)
 
   # n rows
   table_rows <- databricks_serv$get(
@@ -161,7 +177,39 @@ testthat::test_that("databricks_server - meta data", {
                          sort(colnames(test_data)))
 })
 
-# 4. Drop table ----------------------------------------------------------------
+# 4. Replace the table ---------------------------------------------------------
+
+testthat::test_that("mssql_server - replace_db_table", {
+  
+  n_rows_current_table <- databricks_serv$get(
+    glue(
+      "SELECT count(*) as n
+      from {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}")
+  ) %>%
+    pull(n) %>%
+    as.integer()
+  
+  # replace with original test data
+  replace_table <- databricks_serv$replace_db_table(
+    data = test_data,
+    table_name = test_table_name
+  )
+  
+  n_rows_replaced_table <- databricks_serv$get(
+    glue(
+      "SELECT count(*) as n
+      from {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}")
+  ) %>%
+    pull(n) %>%
+    as.integer()
+  
+  expect_equal(n_rows_current_table, 100)
+  expect_match(replace_table, "success")
+  expect_equal(n_rows_replaced_table, 50)
+  
+})
+
+# 5. Drop table ----------------------------------------------------------------
 
 testthat::test_that("databricks_server - drop table", {
 
@@ -173,7 +221,7 @@ testthat::test_that("databricks_server - drop table", {
 
 })
 
-# 5. drop connection -----------------------------------------------------------
+# 6. drop connection -----------------------------------------------------------
 
 testthat::test_that("databricks_server - close connection", {
 
