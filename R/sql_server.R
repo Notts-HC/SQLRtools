@@ -402,6 +402,86 @@ sql_server <- R6Class("sql_server", public = list(
   },
   
   #' @description
+  #' Rename table
+  #' 
+  #' @param table_name name of the existing table. Unquoted string, no default. 
+  #' @param new_name new name of the table. Unquoted string, no default. 
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
+  #' @param close_conn set whether to close the connection after query is run.
+  #' Generally this should be TRUE, only leave open if specific reason to do so,
+  #' such as using temporary tables. Logical, default TRUE.
+  
+  rename_table = function(table_name,
+                          new_name,
+                          catalog = NULL, 
+                          schema = NULL, 
+                          close_conn = TRUE) {
+    
+    if (self$table_exists(table_name, close_conn = FALSE) == "yes") {
+      
+      if (self$server_type == "mssql") {
+        
+        if (is.null(self$schema)) {
+          schema <- ""
+        } else {
+          schema <- glue("{self$schema}.")
+        }
+        
+        if (substr(table_name, 1, 1) == "#") {
+          stop("can't rename temp tables")
+        }
+        
+        self$run(
+          glue(
+            "exec sp_rename
+            '{schema}{tbl_name}',
+             '{table_name}_TO_BE_DELETED'"
+             ),
+          close_conn = close_conn
+          )
+        
+      } else if (self$server_type == "mysql") {
+        
+        self$run(
+          glue(
+            "RENAME TABLE {table_name} TO {new_name}"
+          ),
+          close_conn = close_conn
+        )
+        
+      } else if (self$server_type == "databricks") {
+        
+        if (is.null(catalog)) {catalog <- self$catalog}
+        if (is.null(schema)) {schema <- self$schema}
+        
+        self$run(
+          glue(
+            "ALTER TABLE {catalog}.{schema}.{table_name}
+            RENAME TO {catalog}.{schema}.{new_name};"
+          ),
+          close_conn = close_conn
+        )
+        
+      }
+      
+      
+    } else {
+      message(
+        glue(
+          "table '{table_name}' doesn't exist"
+        )
+      )
+    }
+
+  },
+  
+  
+  #' @description
   #' Upload a dataframe to specified database in SQL server. Checks the number
   #' of rows in the tabe after upload and gives indication if sucessful or not.
   #'
@@ -546,6 +626,10 @@ sql_server <- R6Class("sql_server", public = list(
     # if data bricks, use the specific function
     if (self$server_type == "databricks") {
       
+      if (is.null(batch_upload)) {
+        batch_upload <- 50
+      }
+      
       upload_to_databricks(
         conn = self, 
         catalog = catalog, 
@@ -553,7 +637,7 @@ sql_server <- R6Class("sql_server", public = list(
         table_name = table_name, 
         data = data, 
         append = append_data,
-        batch_upload = 50
+        batch_upload = batch_upload
       )
       
     } else {
@@ -647,6 +731,156 @@ sql_server <- R6Class("sql_server", public = list(
     }
   },
   
+  #' @description 
+  #' Replace existing table in database.
+  #' 
+  #' `r lifecycle::badge("experimental")`
+  #' 
+  #' Function uploads table to databases in steps, uploading initially with
+  #' '_temp' suffix to table name, renaming existing table to old, renaming
+  #' '_temp' table to replace old one and then dropping the '_old' table.
+  #' 
+  #' @param db_conn needs to be 'sql_server' class R6 objected created by
+  #' SQLRtools::sql_server(), no default.
+  #' @param data data frame to be uploaded, unquoted string, no default
+  #' @param table_name name of the table to be replaced. Note, if the table
+  #' doesn't already exist, will just be uploaded directly. Quoted string, no
+  #' default.
+  #' @param catalog The name of the catalog the schema is in. Note that this
+  #' is only required when connecting to databricks. Quoted string, default
+  #' value from class when initiated. 
+  #' @param schema The name of the schema. Note that this is only required when 
+  #' connecting to databricks. Quoted string, default value from class when 
+  #' initiated. 
+  #' @param database name of the database to upload to. If NULL, default, will use
+  #' the database set in db_conn.
+  #' @param batch_upload Upload the data in batches. Set to NULL to upload in one
+  #' go or an integer to indicate the size of batches to upload data to. Note,
+  #' when uploading in batches, input for append_data will be used for the first
+  #' batch and then set to TRUE for following batches to allow data to be appended
+  #' to the same table. If uploading in batches, it is highly recommended to check
+  #' the number of rows uploaded is as expected. Numeric, default NULL.
+  #' @param variable_types Data types, e.g. "nvarchar(50)", "int", "tinyint" etc.
+  #' Variable types need to be in the same order as the columns in the data
+  #' frame. Quoted string; no default.
+  #' @param close_conn set whether to close the connection after query is run.
+  #' Generally this should be TRUE, only leave open if specific reason to do so,
+  #' such as using temporary tables. Logical, default TRUE.
+  
+  replace_db_table = function(
+    data,
+    table_name,
+    catalog = self$catalog, 
+    schema = self$schema,
+    database = self$database,
+    batch_upload = NULL,
+    variable_types = NULL,
+    close_conn = TRUE
+    ) {
+    
+    temp_table_nm <- glue("{table_name}_temp")
+    to_be_delete_tbl_nm <- glue("{table_name}_TO_BE_DELETED")
+    
+    # drop temp table if already exists
+    if (self$table_exists(temp_table_nm) == "yes") {
+      self$drop_table(temp_table_nm)
+    }
+    
+    # set batch
+    if (nrow(data) > 1000) {
+      batch <- 1000
+    } else {
+      batch <- NULL
+    }
+    
+    # upload
+    upload_outcome <- self$upload(
+      data = data,
+      table_name = temp_table_nm,
+      append_data = FALSE,
+      batch_upload = batch,
+      variable_types = variable_types,
+      close_conn = FALSE # could be a temp table
+      )
+    
+    # stop if failed
+    if (upload_outcome != "success") {
+      
+      if (self$table_exists(temp_table_nm) == "yes") {
+        stop(
+          glue(
+            "temp table '{temp_table_nm}' created, but something went wrong. ", 
+            "table '{table_name}' has NOT been replaced."
+          )
+        )
+      } else {
+        stop(glue("Failed to created Temp table {table_name}_temp"))
+      }
+    }
+    
+    # drop 'to be deleted' table if exists
+    if (self$table_exists(to_be_delete_tbl_nm) == "yes") {
+      self$drop_table(to_be_delete_tbl_nm)
+    }
+    
+    # if table already exists rename it
+    suppressMessages(self$rename_table(table_name, to_be_delete_tbl_nm))
+    
+    # rename temp table to proper table name
+    self$rename_table(temp_table_nm, table_name)
+    
+    # drop the temp and old tables if there
+    self$drop_table(to_be_delete_tbl_nm)
+    self$drop_table(temp_table_nm)
+    
+    # check new replacement table uploaded ok
+    if (self$table_exists(table_name) == "yes") {
+      
+      if (self$server_type == "databricks") {
+        
+        # check number of rows in table
+        new_tbl_count <- self$get(
+          glue("SELECT count(*) AS n FROM {catalog}.{schema}.{table_name}"),
+          close_conn = close_conn) |> 
+          pull(n)
+        
+      } else {
+        
+        # check number of rows in table
+        new_tbl_count <- self$get(glue("SELECT count(*) AS n
+                                    FROM {table_name}"),
+                                 close_conn = close_conn) %>%
+          pull(n)
+        
+      }
+      
+      if (new_tbl_count == nrow(data)) {
+        
+        return("success")
+        
+      } else {
+        
+        # fail
+        stop(
+          glue(
+            "Table {table_name} created but number of ",
+            "rows ({new_tbl_count}) doesn't match that ",
+            "expecting ({nrow(data)})"
+          )
+        )
+      }
+      
+    } else {
+      
+      stop(
+        glue(
+          "Upload failed, table {table_name} no longer exists"
+        )
+      )
+    }
+    
+  },
+  
   #' @description
   #' Drop table on server if exists
   #'
@@ -659,6 +893,9 @@ sql_server <- R6Class("sql_server", public = list(
   #' @param schema The name of the schema. Note that this is only required when 
   #' connecting to databricks. Quoted string, default value from class when 
   #' initiated. 
+  #' @param quiet set whether to run 'quietly'. Setting to FALSE will return
+  #' a messaging notifiying if table didn't exist to be dropped. Logical, 
+  #' default TRUE
   #' @param close_conn set whether to close the connection after query is run.
   #' Generally this should be TRUE, only leave open if specific reason to do so,
   #' such as using temporary tables. Logical, default TRUE.
@@ -667,6 +904,7 @@ sql_server <- R6Class("sql_server", public = list(
     table_name, 
     catalog = self$catalog, 
     schema = self$schema,
+    quiet = TRUE,
     close_conn = TRUE) {
     
     if (self$table_exists(
@@ -688,7 +926,9 @@ sql_server <- R6Class("sql_server", public = list(
       }
       
     } else {
-      message(glue("table {table_name} doesn't exist"))
+      if (quiet == FALSE) {
+        message(glue("table {table_name} doesn't exist"))
+      }
     }
   },
   
