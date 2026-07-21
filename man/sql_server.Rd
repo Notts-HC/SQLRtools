@@ -87,7 +87,9 @@ local or on databricks itself), set when initialised.}
 \item \href{#method-sql_server-get}{\code{sql_server$get()}}
 \item \href{#method-sql_server-run}{\code{sql_server$run()}}
 \item \href{#method-sql_server-table_exists}{\code{sql_server$table_exists()}}
+\item \href{#method-sql_server-rename_table}{\code{sql_server$rename_table()}}
 \item \href{#method-sql_server-upload}{\code{sql_server$upload()}}
+\item \href{#method-sql_server-replace_db_table}{\code{sql_server$replace_db_table()}}
 \item \href{#method-sql_server-drop_table}{\code{sql_server$drop_table()}}
 \item \href{#method-sql_server-databases}{\code{sql_server$databases()}}
 \item \href{#method-sql_server-catalogs}{\code{sql_server$catalogs()}}
@@ -281,6 +283,43 @@ such as using temporary tables. Logical, default TRUE.}
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-sql_server-rename_table"></a>}}
+\if{latex}{\out{\hypertarget{method-sql_server-rename_table}{}}}
+\subsection{Method \code{rename_table()}}{
+Rename table
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$rename_table(
+  table_name,
+  new_name,
+  catalog = NULL,
+  schema = NULL,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{table_name}}{name of the existing table. Unquoted string, no default.}
+
+\item{\code{new_name}}{new name of the table. Unquoted string, no default.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
+
+\item{\code{close_conn}}{set whether to close the connection after query is run.
+Generally this should be TRUE, only leave open if specific reason to do so,
+such as using temporary tables. Logical, default TRUE.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-sql_server-upload"></a>}}
 \if{latex}{\out{\hypertarget{method-sql_server-upload}{}}}
 \subsection{Method \code{upload()}}{
@@ -339,6 +378,71 @@ such as using temporary tables. Logical, default TRUE.}
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-sql_server-replace_db_table"></a>}}
+\if{latex}{\out{\hypertarget{method-sql_server-replace_db_table}{}}}
+\subsection{Method \code{replace_db_table()}}{
+Replace existing table in database.
+
+\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#experimental}{\figure{lifecycle-experimental.svg}{options: alt='[Experimental]'}}}{\strong{[Experimental]}}
+
+Function uploads table to databases in steps, uploading initially with
+'_temp' suffix to table name, renaming existing table to old, renaming
+'_temp' table to replace old one and then dropping the '_old' table.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$replace_db_table(
+  data,
+  table_name,
+  catalog = self$catalog,
+  schema = self$schema,
+  database = self$database,
+  batch_upload = NULL,
+  variable_types = NULL,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{data}}{data frame to be uploaded, unquoted string, no default}
+
+\item{\code{table_name}}{name of the table to be replaced. Note, if the table
+doesn't already exist, will just be uploaded directly. Quoted string, no
+default.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
+
+\item{\code{database}}{name of the database to upload to. If NULL, default, will use
+the database set in db_conn.}
+
+\item{\code{batch_upload}}{Upload the data in batches. Set to NULL to upload in one
+go or an integer to indicate the size of batches to upload data to. Note,
+when uploading in batches, input for append_data will be used for the first
+batch and then set to TRUE for following batches to allow data to be appended
+to the same table. If uploading in batches, it is highly recommended to check
+the number of rows uploaded is as expected. Numeric, default NULL.}
+
+\item{\code{variable_types}}{Data types, e.g. "nvarchar(50)", "int", "tinyint" etc.
+Variable types need to be in the same order as the columns in the data
+frame. Quoted string; no default.}
+
+\item{\code{close_conn}}{set whether to close the connection after query is run.
+Generally this should be TRUE, only leave open if specific reason to do so,
+such as using temporary tables. Logical, default TRUE.}
+
+\item{\code{db_conn}}{needs to be 'sql_server' class R6 objected created by
+SQLRtools::sql_server(), no default.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-sql_server-drop_table"></a>}}
 \if{latex}{\out{\hypertarget{method-sql_server-drop_table}{}}}
 \subsection{Method \code{drop_table()}}{
@@ -350,6 +454,7 @@ Drop table on server if exists
   table_name,
   catalog = self$catalog,
   schema = self$schema,
+  quiet = TRUE,
   close_conn = TRUE
 )}\if{html}{\out{</div>}}
 }
@@ -366,6 +471,10 @@ value from class when initiated.}
 \item{\code{schema}}{The name of the schema. Note that this is only required when
 connecting to databricks. Quoted string, default value from class when
 initiated.}
+
+\item{\code{quiet}}{set whether to run 'quietly'. Setting to FALSE will return
+a messaging notifiying if table didn't exist to be dropped. Logical,
+default TRUE}
 
 \item{\code{close_conn}}{set whether to close the connection after query is run.
 Generally this should be TRUE, only leave open if specific reason to do so,
