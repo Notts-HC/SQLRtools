@@ -12,8 +12,6 @@
 #' @param var_name name of the variable. Note that this is the "service" in
 #' when using keyring to retrieve variable. Quoted string, no default.
 #'
-#' @import keyring
-#'
 #' @returns string
 #'
 #' @export
@@ -27,6 +25,16 @@ get_env_var <- function(var_name) {
 
     # if running locally, try keyring first
   } else {
+    
+    # check if have keyring installed
+    kr_inst <- try({
+      kr_in <- find.package("keyring")
+      TRUE },
+      silent = TRUE)
+    
+    if (kr_inst != TRUE) {
+      stop("install keyring to use this function: 'installpackages('keyring')")
+    }
 
     # try keyring
     kr <- try({
