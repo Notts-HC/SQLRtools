@@ -214,7 +214,7 @@ upload_to_databricks <- function(
     # write table
     sparklyr::spark_write_table(
       x = tbl_spark_data, 
-      name = table_name, 
+      name = as.character(table_name), 
       mode = write_mode
     )
     
