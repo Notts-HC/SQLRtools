@@ -25,6 +25,7 @@
 #' @import DBI
 #' @importFrom stats setNames
 #' @importFrom janitor clean_names
+#' @importFrom sparklyr spark_connect
 #' @import lubridate
 #' @import stringi
 #' @import lifecycle
