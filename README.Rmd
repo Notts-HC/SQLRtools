@@ -93,17 +93,38 @@ library(SQLRtools)
 
 
 # set connection to MS SQL server
-ms_sql_server <- sql_server$new(driver = "SQL Server",
-                                server = get_env_var("MSSQL_SERVER"),
-                                database = get_env_var("MSSQL_DATABASE"))
+ms_sql_server <- sql_server$new(
+  driver = "SQL Server",
+  server = get_env_var("MSSQL_SERVER"),
+  database = get_env_var("MSSQL_DATABASE")
+  )
 
 # set connect to MySQL server
-my_sql_server <- sql_server$new(driver = "MySQL ODBC 8.0 Unicode Driver",
-                                server = get_env_var("HOST_NAME"),
-                                database = get_env_var("MYSQL_DB"),
-                                port = get_env_var("MYSQL_PORT"),
-                                uid = get_env_var("MYSQL_USER"),
-                                pwd = get_env_var("MYSQL_PASSWORD"))
+my_sql_server <- sql_server$new(
+  driver = "MySQL ODBC 8.0 Unicode Driver",
+  server = get_env_var("HOST_NAME"),
+  database = get_env_var("MYSQL_DB"),
+  port = get_env_var("MYSQL_PORT"),
+  uid_var = "MYSQL_USER",
+  pwd_var = "MYSQL_PASSWORD"
+  )
+
+# Set connection to databricks from local/posit connect
+databricks_serv <- sql_server$new(
+  driver = "Databricks ODBC Driver",
+  port = SQLRtools::get_env_var("TEST_DATABRICKS_PORT"),
+  host = SQLRtools::get_env_var("TEST_DATABRICKS_HOST"),
+  httppath = SQLRtools::get_env_var("TEST_DATABRICKS_HTTPPATH"),
+  pwd_var = "TEST_DATABRICKS_PAT",
+  catalog = SQLRtools::get_env_var("TEST_DATABRICKS_CATALOG"),
+  schema = SQLRtools::get_env_var("TEST_DATABRICKS_SCHEMA")
+)
+
+# set connection to databricks when running on databricks
+databricks_serv <- sql_server$new(
+  driver = "databricks"
+)
+
 
 ```
 
