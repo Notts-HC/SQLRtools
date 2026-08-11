@@ -1,7 +1,7 @@
 Package: SQLRtools
 Type: Package
 Title: SQL R Tools
-Version: 0.0.4
+Version: 1.0.0
 Author: c(person("Stephen", "Spreadborough", 
           , "stephen.spreadborough@nottshc.nhs.uk ", 
           role = c("aut", "cre")))
@@ -21,10 +21,12 @@ Imports:
     odbc,
     DBI,
     lubridate,
-    keyring,
     stringi,
     lifecycle,
-    janitor
+    janitor,
+    tidyr,
+    sparklyr
 Suggests: 
+    keyring,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

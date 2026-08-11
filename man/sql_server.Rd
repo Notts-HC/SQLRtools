@@ -32,21 +32,47 @@ no default.}
 
 \item{\code{database}}{name of the database. Quoted string, no default.}
 
+\item{\code{catalog}}{name of the catalog. Note: only used when connecting to
+databricks. If set when initiating the class, this catalog is used by
+default in all methods unless changed/specified otherwise when
+calling specific methods. Quoted string, default NULL.}
+
+\item{\code{schema}}{name of the schema for databricks Note: only used when
+connecting to databricks. If set when initiating the class, this
+catalog is used by default in all methods unless changed/specified
+otherwise when  calling specific methods. Quoted string, default NULL.}
+
 \item{\code{port}}{port of the database. Not required if SQL server on prem &
 using user credentials. Quoted string, default NULL.}
 
-\item{\code{uid}}{user name for database login. Not required if querying on prem
+\item{\code{host}}{host string for databricks connection. Only required when
+connecting to databricks from local. Quoted string, default NULL.}
+
+\item{\code{httppath}}{HTTPPath string for daabricks connection. Only required
+when connecting to databricks from local. Quoted string, default NULL.}
+
+\item{\code{uid_var}}{variable name for the user name for database login. Note
+this is the name of the variable when creating it using
+\code{keyring::key_set(service = '{var_name}')}. The connection will be made
+using \code{get_env_var(uid_var)}, and therefore avoid saving the user name
+in the object itself. Not required if querying on prem
 SQL server as will use windows credentials. Do NOT save credentials in
 code. Quoted string, default NULL.}
 
-\item{\code{pwd}}{user password for database login. NOT REQUIRED if querying on
-prem SQL server as will use windows credentials. Do NOT save credentials
-in code. Quoted string, default NULL.}
+\item{\code{pwd_var}}{variable name for the user password for database login. Note
+this is the name of the variable when creating it using
+\code{keyring::key_set(service = '{var_name}')}. The connection will be made
+using \code{get_env_var(pwd_var)}, and therefore avoid saving the password
+in the object itself.  NOT REQUIRED if querying on prem SQL server as will
+use windows credentials. Quoted string, default NULL.}
 
 \item{\code{encrypt}}{set whether to include "Encrypt=true;" in connection string.
 TRUE, default, will include & FALSE will exclude. Logical, default TRUE}
 
 \item{\code{server_type}}{type of connection, set when initialised.}
+
+\item{\code{databricks_loc}}{location running databricks connections from (i.e.
+local or on databricks itself), set when initialised.}
 
 \item{\code{conn}}{connection object, set when initialised.}
 }
@@ -61,9 +87,13 @@ TRUE, default, will include & FALSE will exclude. Logical, default TRUE}
 \item \href{#method-sql_server-get}{\code{sql_server$get()}}
 \item \href{#method-sql_server-run}{\code{sql_server$run()}}
 \item \href{#method-sql_server-table_exists}{\code{sql_server$table_exists()}}
+\item \href{#method-sql_server-rename_table}{\code{sql_server$rename_table()}}
 \item \href{#method-sql_server-upload}{\code{sql_server$upload()}}
+\item \href{#method-sql_server-replace_db_table}{\code{sql_server$replace_db_table()}}
 \item \href{#method-sql_server-drop_table}{\code{sql_server$drop_table()}}
 \item \href{#method-sql_server-databases}{\code{sql_server$databases()}}
+\item \href{#method-sql_server-catalogs}{\code{sql_server$catalogs()}}
+\item \href{#method-sql_server-schemas}{\code{sql_server$schemas()}}
 \item \href{#method-sql_server-db_tables}{\code{sql_server$db_tables()}}
 \item \href{#method-sql_server-db_views}{\code{sql_server$db_views()}}
 \item \href{#method-sql_server-temp_table_name}{\code{sql_server$temp_table_name()}}
@@ -82,11 +112,15 @@ Create new SQL server connection object.
 \if{html}{\out{<div class="r">}}\preformatted{sql_server$new(
   driver,
   server = NULL,
-  database,
+  database = NULL,
+  catalog = NULL,
+  schema = NULL,
   dsn = NULL,
   port = NULL,
-  uid = NULL,
-  pwd = NULL,
+  host = NULL,
+  httppath = NULL,
+  uid_var = NULL,
+  pwd_var = NULL,
   encrypt = TRUE
 )}\if{html}{\out{</div>}}
 }
@@ -100,13 +134,21 @@ Create new SQL server connection object.
 
 \item{\code{database}}{name of the database.}
 
+\item{\code{catalog}}{name of the databricks catalog}
+
+\item{\code{schema}}{name of the databricks schema}
+
 \item{\code{dsn}}{Data Source Name.}
 
 \item{\code{port}}{port of the database.}
 
-\item{\code{uid}}{user name for database login.}
+\item{\code{host}}{host value, required when connecting to databricks.}
 
-\item{\code{pwd}}{user password for database login.}
+\item{\code{httppath}}{HTTPPath value, required when connecting to databrikcs.}
+
+\item{\code{uid_var}}{user name for database login.}
+
+\item{\code{pwd_var}}{user password for database login.}
 
 \item{\code{encrypt}}{set whether to include "Encrypt=true;" in connection string.
 TRUE, defautl, will include & FALSE will exclude. Logical, default TRUE}
@@ -211,7 +253,12 @@ Check if specified table exists on the server.
 
 \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#stable}{\figure{lifecycle-stable.svg}{options: alt='[Stable]'}}}{\strong{[Stable]}}
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{sql_server$table_exists(table_name, close_conn = TRUE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$table_exists(
+  table_name,
+  catalog = self$catalog,
+  schema = self$schema,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -219,6 +266,51 @@ Check if specified table exists on the server.
 \describe{
 \item{\code{table_name}}{name of table without syntax (i.e. remove any brackets
 or '`'). Quoted string, no default}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
+
+\item{\code{close_conn}}{set whether to close the connection after query is run.
+Generally this should be TRUE, only leave open if specific reason to do so,
+such as using temporary tables. Logical, default TRUE.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-sql_server-rename_table"></a>}}
+\if{latex}{\out{\hypertarget{method-sql_server-rename_table}{}}}
+\subsection{Method \code{rename_table()}}{
+Rename table
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$rename_table(
+  table_name,
+  new_name,
+  catalog = NULL,
+  schema = NULL,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{table_name}}{name of the existing table. Unquoted string, no default.}
+
+\item{\code{new_name}}{new name of the table. Unquoted string, no default.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
 
 \item{\code{close_conn}}{set whether to close the connection after query is run.
 Generally this should be TRUE, only leave open if specific reason to do so,
@@ -239,7 +331,8 @@ of rows in the tabe after upload and gives indication if sucessful or not.
 \if{html}{\out{<div class="r">}}\preformatted{sql_server$upload(
   data,
   table_name,
-  schema_name = NULL,
+  catalog = self$catalog,
+  schema = self$schema,
   variable_types = NULL,
   append_data = FALSE,
   batch_upload = NULL,
@@ -255,8 +348,13 @@ of rows in the tabe after upload and gives indication if sucessful or not.
 \item{\code{table_name}}{The name of the table when uploaded. Quoted string; no
 default.}
 
-\item{\code{schema_name}}{The name of the table schema when uploaded. Quoted
-string; default NULL.}
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
 
 \item{\code{variable_types}}{Data types, e.g. "nvarchar(50)", "int", "tinyint" etc.
 Variable types need to be in the same order as the columns in the data
@@ -280,6 +378,71 @@ such as using temporary tables. Logical, default TRUE.}
 }
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-sql_server-replace_db_table"></a>}}
+\if{latex}{\out{\hypertarget{method-sql_server-replace_db_table}{}}}
+\subsection{Method \code{replace_db_table()}}{
+Replace existing table in database.
+
+\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#experimental}{\figure{lifecycle-experimental.svg}{options: alt='[Experimental]'}}}{\strong{[Experimental]}}
+
+Function uploads table to databases in steps, uploading initially with
+'_temp' suffix to table name, renaming existing table to old, renaming
+'_temp' table to replace old one and then dropping the '_old' table.
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$replace_db_table(
+  data,
+  table_name,
+  catalog = self$catalog,
+  schema = self$schema,
+  database = self$database,
+  batch_upload = NULL,
+  variable_types = NULL,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{data}}{data frame to be uploaded, unquoted string, no default}
+
+\item{\code{table_name}}{name of the table to be replaced. Note, if the table
+doesn't already exist, will just be uploaded directly. Quoted string, no
+default.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
+
+\item{\code{database}}{name of the database to upload to. If NULL, default, will use
+the database set in db_conn.}
+
+\item{\code{batch_upload}}{Upload the data in batches. Set to NULL to upload in one
+go or an integer to indicate the size of batches to upload data to. Note,
+when uploading in batches, input for append_data will be used for the first
+batch and then set to TRUE for following batches to allow data to be appended
+to the same table. If uploading in batches, it is highly recommended to check
+the number of rows uploaded is as expected. Numeric, default NULL.}
+
+\item{\code{variable_types}}{Data types, e.g. "nvarchar(50)", "int", "tinyint" etc.
+Variable types need to be in the same order as the columns in the data
+frame. Quoted string; no default.}
+
+\item{\code{close_conn}}{set whether to close the connection after query is run.
+Generally this should be TRUE, only leave open if specific reason to do so,
+such as using temporary tables. Logical, default TRUE.}
+
+\item{\code{db_conn}}{needs to be 'sql_server' class R6 objected created by
+SQLRtools::sql_server(), no default.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-sql_server-drop_table"></a>}}
 \if{latex}{\out{\hypertarget{method-sql_server-drop_table}{}}}
 \subsection{Method \code{drop_table()}}{
@@ -287,13 +450,31 @@ Drop table on server if exists
 
 \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#stable}{\figure{lifecycle-stable.svg}{options: alt='[Stable]'}}}{\strong{[Stable]}}
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{sql_server$drop_table(table_name, close_conn = TRUE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$drop_table(
+  table_name,
+  catalog = self$catalog,
+  schema = self$schema,
+  quiet = TRUE,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
 \if{html}{\out{<div class="arguments">}}
 \describe{
 \item{\code{table_name}}{name of table.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
+
+\item{\code{quiet}}{set whether to run 'quietly'. Setting to FALSE will return
+a messaging notifiying if table didn't exist to be dropped. Logical,
+default TRUE}
 
 \item{\code{close_conn}}{set whether to close the connection after query is run.
 Generally this should be TRUE, only leave open if specific reason to do so,
@@ -315,6 +496,38 @@ List all the databases on the server.
 
 }
 \if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-sql_server-catalogs"></a>}}
+\if{latex}{\out{\hypertarget{method-sql_server-catalogs}{}}}
+\subsection{Method \code{catalogs()}}{
+List catalogs in databricks
+
+\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#stable}{\figure{lifecycle-stable.svg}{options: alt='[Stable]'}}}{\strong{[Stable]}}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$catalogs()}\if{html}{\out{</div>}}
+}
+
+}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-sql_server-schemas"></a>}}
+\if{latex}{\out{\hypertarget{method-sql_server-schemas}{}}}
+\subsection{Method \code{schemas()}}{
+List schemas in a given catalog.
+
+\ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#stable}{\figure{lifecycle-stable.svg}{options: alt='[Stable]'}}}{\strong{[Stable]}}
+\subsection{Usage}{
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$schemas(catalog = self$catalog)}\if{html}{\out{</div>}}
+}
+
+\subsection{Arguments}{
+\if{html}{\out{<div class="arguments">}}
+\describe{
+\item{\code{catalog}}{The name of the catalog. Quoted string, default
+value from class when initiated.}
+}
+\if{html}{\out{</div>}}
+}
+}
+\if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-sql_server-db_tables"></a>}}
 \if{latex}{\out{\hypertarget{method-sql_server-db_tables}{}}}
 \subsection{Method \code{db_tables()}}{
@@ -327,7 +540,12 @@ access tables.
 
 \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#stable}{\figure{lifecycle-stable.svg}{options: alt='[Stable]'}}}{\strong{[Stable]}}
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{sql_server$db_tables(database = self$database, close_conn = TRUE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$db_tables(
+  database = self$database,
+  catalog = self$catalog,
+  schema = self$schema,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -335,6 +553,14 @@ access tables.
 \describe{
 \item{\code{database}}{database to list table from. Quoted string, defaults to
 database used to create class.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
 
 \item{\code{close_conn}}{set whether to close the connection after query is run.
 Generally this should be TRUE, only leave open if specific reason to do so,
@@ -353,7 +579,12 @@ on the same server.
 
 \ifelse{html}{\href{https://lifecycle.r-lib.org/articles/stages.html#stable}{\figure{lifecycle-stable.svg}{options: alt='[Stable]'}}}{\strong{[Stable]}}
 \subsection{Usage}{
-\if{html}{\out{<div class="r">}}\preformatted{sql_server$db_views(database = self$database, close_conn = TRUE)}\if{html}{\out{</div>}}
+\if{html}{\out{<div class="r">}}\preformatted{sql_server$db_views(
+  database = self$database,
+  catalog = self$catalog,
+  schema = self$schema,
+  close_conn = TRUE
+)}\if{html}{\out{</div>}}
 }
 
 \subsection{Arguments}{
@@ -361,6 +592,14 @@ on the same server.
 \describe{
 \item{\code{database}}{database to list views from. Quoted string, defaults to
 database used to create class.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
 
 \item{\code{close_conn}}{set whether to close the connection after query is run.
 Generally this should be TRUE, only leave open if specific reason to do so,
@@ -434,6 +673,8 @@ List of fields in an object (i.e. table/field).
 \subsection{Usage}{
 \if{html}{\out{<div class="r">}}\preformatted{sql_server$object_fields(
   database = self$database,
+  catalog = self$catalog,
+  schema = self$schema,
   objects = NULL,
   close_conn = TRUE
 )}\if{html}{\out{</div>}}
@@ -444,6 +685,14 @@ List of fields in an object (i.e. table/field).
 \describe{
 \item{\code{database}}{database with tables/views to fields from. Quoted
 string, defaults to database used to create class.}
+
+\item{\code{catalog}}{The name of the catalog the schema is in. Note that this
+is only required when connecting to databricks. Quoted string, default
+value from class when initiated.}
+
+\item{\code{schema}}{The name of the schema. Note that this is only required when
+connecting to databricks. Quoted string, default value from class when
+initiated.}
 
 \item{\code{objects}}{vector with table(s) and/or view(s) to get fields from.
 Quoted string, default NULL includes all the tables & views in the database

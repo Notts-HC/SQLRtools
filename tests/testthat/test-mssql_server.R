@@ -13,20 +13,37 @@ mssql_serv <- sql_server$new(driver = "SQL Server",
                              server = get_env_var("MSSQL_SERVER"),
                              database = get_env_var("MSSQL_DATABASE"))
 # set name of test table
-test_table_name <- "#SQLRtools_test_table"
+test_table_name <- "#SQLRtools_temp"
 
 # make sure table doesn't exist before running
 suppressMessages(mssql_serv$drop_table(test_table_name))
 
 # create dummy data to be uploaded
-test_data <- data.frame(Int_field = 1:200,
-                        char_field_1 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
-                        char_field_2 = stri_rand_strings(200, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
-                        date_field = sample(seq(as.Date('2018/01/01'), as.Date('2024/01/01'), by = "day"), 200),
-                        date_time_field = sample(seq(as_datetime('2018-01-01 00:00:00'),
-                                                     as_datetime('2024-01-01 00:00:00'),
-                                                     by = "min"), 200))
+n <- 200
 
+test_data <- data.frame(
+  Int_field = 1:n,
+  char_field_1 = stri_rand_strings(n, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+  char_field_2 = stri_rand_strings(n, sample(5:11, 5, replace = TRUE), '[a-zA-Z]'),
+  date_field = sample(seq(as.Date('2018/01/01'), as.Date('2024/01/01'), by = "day"), n),
+  date_time_field = sample(
+    seq(as_datetime('2018-01-01 00:00:00'),
+       as_datetime('2024-01-01 00:00:00'),
+       by = "min"), n)
+  )
+
+test_data <- as.data.frame(
+  apply(test_data, 2, function(x) {x[sample(c(1:n), floor(n/10))] <- NA; x})
+)
+
+test_data <- test_data |> 
+  mutate(
+    Int_field = as.integer(trimws(Int_field)),
+    date_field = as.Date(date_field), 
+    date_time_field = as_datetime(date_time_field)
+  )
+
+test_data$char_field_1[5] <- "special'char"
 
 # 1. uploading data ------------------------------------------------------------
 
@@ -45,6 +62,16 @@ testthat::test_that("mssql_server - upload method", {
   # table exists
   table_exists <- mssql_serv$table_exists(test_table_name,
                                           close_conn = FALSE)
+  
+  
+  # rename table should error (temp table)
+  expect_error(
+    mssql_serv$rename_table(
+      test_table_name, 
+      "#new_temp_table", 
+      close_conn = FALSE
+      )
+  )
 
   # n rows
   table_rows <- mssql_serv$get(glue("SELECT count(*) as n
@@ -186,13 +213,15 @@ testthat::test_that("mssql_server - meta data", {
 
 
   # filter the data by date in meta data
-  date_to_filter <- max(test_data$date_field) - 150
+  date_to_filter <- max(test_data$date_field, na.rm = TRUE) - 150
+  
   meta_data2 <- mssql_serv$meta_data(objects = test_table_name,
                                      detail = TRUE,
                                      row_limit = 1000,
                                      date_filter = date_to_filter,
                                      date_field = "date_field",
                                      close_conn = FALSE)[[1]]
+  
   testthat::expect_equal(meta_data2$n_rows[1], nrow(filter(test_data, date_field >= date_to_filter))*2)
   testthat::expect_true(grepl("(from field \\[date_field\\])", meta_data2$date_last_non_null_value[1]))
 
@@ -213,6 +242,7 @@ testthat::test_that("mssql_server - meta data", {
 
   testthat::expect_true(is.na(meta_data3$date_last_non_null_value[1]))
 })
+
 
 # 4. Drop table ----------------------------------------------------------------
 
