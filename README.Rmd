@@ -27,12 +27,17 @@ methods will do this by default.
 * **get**: run SQL query on the server and return results to R environment. 
 * **run**: run SQL query on the server without returning results to R
 environment, e.g. if inserting data into another table/creating temp tables etc. 
+* **rename_table**: Rename given table.
 * **table_exists**: check if a table exists in a database. 
 * **upload**: upload data to a database, with options to batch upload. 
+* **replace_db_table**: similar to upload, but will replace a given table 
+if it already exists.
 * **drop_table**: drop table in a database.
 * **databases**: list databases in a server.
-* **db_tables**: list tables in a database.
-* **db_views**: list views in a database.
+* **catalogs**: Lists catalogs in databricks.
+* **schemas**: Lists schemas in a given catalog in databricks. 
+* **db_tables**: list tables in a database/schema.
+* **db_views**: list views in a database/schema.
 * **temp_table_name**: get the full name of a temporary table. 
 * **object_fields**: get list of fields from a table/view.
 * **order_object_fields**: lists the fields in a table/view and order by data
@@ -55,7 +60,7 @@ pak::pkg_install("Notts-HC/SQLRtools")
 
 ## About
 
-You are reading the doc about version: 1.0.0.9000
+You are reading the doc about version: 1.0.1.
 
 This README has been compiled on the
 

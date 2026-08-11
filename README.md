@@ -17,12 +17,17 @@ interacting with the database, including:
 - **run**: run SQL query on the server without returning results to R
   environment, e.g. if inserting data into another table/creating temp
   tables etc.
+- **rename_table**: Rename given table.
 - **table_exists**: check if a table exists in a database.
 - **upload**: upload data to a database, with options to batch upload.
+- **replace_db_table**: similar to upload, but will replace a given
+  table if it already exists.
 - **drop_table**: drop table in a database.
 - **databases**: list databases in a server.
-- **db_tables**: list tables in a database.
-- **db_views**: list views in a database.
+- **catalogs**: Lists catalogs in databricks.
+- **schemas**: Lists schemas in a given catalog in databricks.
+- **db_tables**: list tables in a database/schema.
+- **db_views**: list views in a database/schema.
 - **temp_table_name**: get the full name of a temporary table.
 - **object_fields**: get list of fields from a table/view.
 - **order_object_fields**: lists the fields in a table/view and order by
@@ -45,13 +50,13 @@ pak::pkg_install("Notts-HC/SQLRtools")
 
 ## About
 
-You are reading the doc about version: 1.0.0.9000
+You are reading the doc about version: 1.0.1.
 
 This README has been compiled on the
 
 ``` r
 Sys.time()
-#> [1] "2026-07-21 15:44:32 BST"
+#> [1] "2026-08-11 15:08:31 BST"
 ```
 
 Here are the tests results and package coverage:
@@ -59,16 +64,16 @@ Here are the tests results and package coverage:
 ``` r
 devtools::check(quiet = TRUE)
 #> ℹ Loading SQLRtools
-#> ── R CMD check results ─────────────────────────────── SQLRtools 1.0.0.9000 ────
-#> Duration: 12m 24.8s
+#> ── R CMD check results ──────────────────────────────────── SQLRtools 1.0.0 ────
+#> Duration: 3m 20s
 #> 
 #> 0 errors ✔ | 0 warnings ✔ | 0 notes ✔
 ```
 
 ``` r
 covr::package_coverage()
-#> SQLRtools Coverage: 83.02%
-#> R/utils.R: 75.84%
+#> SQLRtools Coverage: 83.03%
+#> R/utils.R: 76.13%
 #> R/sql_server.R: 84.65%
 ```
 
@@ -92,7 +97,7 @@ ms_sql_server <- sql_server$new(
   driver = "SQL Server",
   server = get_env_var("MSSQL_SERVER"),
   database = get_env_var("MSSQL_DATABASE")
-)
+  )
 
 # set connect to MySQL server
 my_sql_server <- sql_server$new(
@@ -100,9 +105,9 @@ my_sql_server <- sql_server$new(
   server = get_env_var("HOST_NAME"),
   database = get_env_var("MYSQL_DB"),
   port = get_env_var("MYSQL_PORT"),
-  uid = get_env_var("MYSQL_USER"),
-  pwd = get_env_var("MYSQL_PASSWORD")
-)
+  uid_var = "MYSQL_USER",
+  pwd_var = "MYSQL_PASSWORD"
+  )
 
 # Set connection to databricks from local/posit connect
 databricks_serv <- sql_server$new(
@@ -119,9 +124,6 @@ databricks_serv <- sql_server$new(
 databricks_serv <- sql_server$new(
   driver = "databricks"
 )
-
-
-
 ```
 
 The methods listed above can now be used with these connections to:
