@@ -155,7 +155,59 @@ testthat::test_that("databricks_server - get data", {
     db_data |> 
       arrange(Int_field, char_field_1)
     )
-
+  
+  # multi statement query
+  db_data_multi <- databricks_serv$run(
+    glue(
+      "
+      DROP TABLE IF EXISTS {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2;
+      DROP TABLE IF EXISTS {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_3;
+      
+      CREATE TABLE {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2 AS
+      SELECT count(*) as n
+      FROM {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name};
+      
+      CREATE TABLE {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_3 AS
+      SELECT *
+      FROM {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2;
+      
+      DROP TABLE {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2
+      "),
+    close_conn = FALSE) 
+  
+  db_data_multi_count <- databricks_serv$get(
+    glue("SELECT * FROM {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_3"),
+    close_conn = FALSE
+  )
+  
+  expect_true(nrow(db_data_multi_count) == 1)
+  expect_true(db_data_multi_count$n == nrow(db_data))
+  
+  databricks_serv$drop_table(glue("{test_table_name}_3"))
+  
+  # multi statement query get
+  db_data_multi_get <- databricks_serv$get(
+    glue(
+      "
+      DROP TABLE IF EXISTS {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2;
+      DROP TABLE IF EXISTS {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_3;
+      
+      CREATE TABLE {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2 AS
+      SELECT count(*) as n
+      FROM {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name};
+      
+      CREATE TABLE {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_3 AS
+      SELECT *
+      FROM {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2;
+      
+      DROP TABLE {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_2;
+      
+      SELECT * FROM {databricks_serv$catalog}.{databricks_serv$schema}.{test_table_name}_3
+      "),
+    close_conn = FALSE) 
+  
+  expect_equal(db_data_multi_get, db_data_multi_count)
+  
 })
 
 # 3. Meta data -----------------------------------------------------------------
