@@ -379,6 +379,13 @@ chr_between <- function(x, y, z, string) {
   # positions of all ;'s
   x_pos <- gregexpr(x, string)[[1]]
   
+  if (length(x_pos) == 1 & x_pos[1] == -1) {
+    return(
+      data.frame(pos = NA, within_yz = NA) |> 
+        filter(!is.na(pos))
+    )
+  }
+  
   # positions of single quotes
   y_pos <- gregexpr(y, string)[[1]]
   z_pos <- gregexpr(z, string)[[1]]
@@ -463,6 +470,9 @@ chr_between <- function(x, y, z, string) {
 
 split_sql_statement <- function(query) {
   
+  #query <- test_query
+  #query <- begin_query2
+  
   if (grepl("split-query-str-here", query)) {
     stop("Query already contains 'split-query-str-here'")
   }
@@ -482,7 +492,9 @@ split_sql_statement <- function(query) {
         ),
       by = "pos"
     ) |> 
+    mutate(across(within_yz.x:within_yz.y, ~ ifelse(is.na(.x), FALSE, .x))) |> 
     filter(within_yz.x == FALSE & within_yz.y == FALSE)
+  
   
   if (nrow(begin_sql) > 0) {
     stop("looks like query uses BEGIN, this is not supported")
