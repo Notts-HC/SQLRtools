@@ -511,6 +511,8 @@ split_sql_statement <- function(query) {
   
   # positions of single quotes
   quote_pos <- gregexpr("'", query)[[1]]
+  exp_quote_pos <- gregexpr("\\\\'", query)[[1]] + 1
+  quote_pos <- quote_pos[!(quote_pos %in% exp_quote_pos)]
   
   # if odd number error - suggests SQL is wrong
   if (length(quote_pos) %% 2 != 0) {
