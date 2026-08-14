@@ -1,7 +1,7 @@
 Package: SQLRtools
 Type: Package
 Title: SQL R Tools
-Version: 1.0.0.9001
+Version: 1.0.1
 Author: c(person("Stephen", "Spreadborough", 
           , "stephen.spreadborough@nottshc.nhs.uk ", 
           role = c("aut", "cre")))

@@ -1,4 +1,9 @@
 
+# SQLRtools 1.0.1
+
+Minor update to handle multi-statement SQL queries when running on MySQL
+and databricks. No other changes to functions or use. 
+
 # SQLRtools 1.0.0
 
 ### Breaking changes
