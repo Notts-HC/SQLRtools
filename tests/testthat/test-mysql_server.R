@@ -1,6 +1,6 @@
 
 # Test sql_server class with MySQL server
-#-------------------------------------------------------------------------------
+#------------------------------------------------------------------------------#
 
 # Author: Steve Spreadborough
 # Date: 2023-10-17
@@ -23,6 +23,7 @@ test_table_name <- "SQLRtools_test_table"
 
 # make sure table doesn't exist before running
 mysql_serv$drop_table(test_table_name)
+mysql_serv$drop_table(glue("{test_table_name}_renamed"))
 
 # create dummy data to be uploaded
 n <- 200
@@ -134,6 +135,59 @@ testthat::test_that("mysql_server - get method", {
 
   # test matches the data uploaded
   testthat::expect_equal(rbind(test_data, test_data), db_data)
+  
+  # multi statement query
+  db_data_multi <- mysql_serv$run(
+    glue(
+      "
+      DROP TABLE IF EXISTS {mysql_serv$database}.{test_table_name}_2;
+      DROP TABLE IF EXISTS {mysql_serv$database}.{test_table_name}_3;
+      
+      CREATE TABLE {mysql_serv$database}.{test_table_name}_2 AS
+      SELECT count(*) as n
+      FROM {mysql_serv$database}.{test_table_name};
+      
+      CREATE TABLE {mysql_serv$database}.{test_table_name}_3 AS
+      SELECT *
+      FROM {mysql_serv$database}.{test_table_name}_2;
+      
+      DROP TABLE {mysql_serv$database}.{test_table_name}_2
+      "),
+    close_conn = FALSE) 
+  
+  db_data_multi_count <- mysql_serv$get(
+    glue("SELECT * FROM {mysql_serv$database}.{test_table_name}_3"),
+    close_conn = FALSE
+  )
+  
+  expect_true(nrow(db_data_multi_count) == 1)
+  expect_true(db_data_multi_count$n == nrow(db_data))
+  
+  mysql_serv$drop_table(glue("{test_table_name}_3"))
+  
+  # multi statement query get
+  db_data_multi_get <- mysql_serv$get(
+    glue(
+      "
+      DROP TABLE IF EXISTS {mysql_serv$database}.{test_table_name}_2;
+      DROP TABLE IF EXISTS {mysql_serv$database}.{test_table_name}_3;
+      
+      CREATE TABLE {mysql_serv$database}.{test_table_name}_2 AS
+      SELECT count(*) as n
+      FROM {mysql_serv$database}.{test_table_name};
+      
+      CREATE TABLE {mysql_serv$database}.{test_table_name}_3 AS
+      SELECT *
+      FROM {mysql_serv$database}.{test_table_name}_2;
+      
+      DROP TABLE {mysql_serv$database}.{test_table_name}_2;
+      
+      SELECT * FROM {mysql_serv$database}.{test_table_name}_3
+      "),
+    close_conn = FALSE) 
+  
+  expect_equal(db_data_multi_get, db_data_multi_count)
+  
 
 })
 

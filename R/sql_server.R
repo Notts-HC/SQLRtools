@@ -308,7 +308,32 @@ sql_server <- R6Class("sql_server", public = list(
   get = function(query, close_conn = TRUE) {
     
     self$connect()
-    output <- DBI::dbGetQuery(self$conn, query)
+    
+    # if databricks, split multi-statment query and run 1 at a time
+    if (self$server_type %in% c("databricks", "mysql")) {
+      
+      split_q <- split_sql_statement(query)
+      
+      for (i in seq_along(split_q)) {
+        
+        q <- split_q[i]
+        
+        if (i == length(split_q)) {
+          output <- DBI::dbGetQuery(self$conn, q)
+          
+        } else {
+          snd_output <- DBI::dbSendStatement(self$conn, q, immediate  = TRUE)
+          dbClearResult(snd_output)
+        }
+        
+      }
+      
+    # otherwise, just run it
+    } else {
+      output <- DBI::dbGetQuery(self$conn, query)
+    }
+    
+
     self$close_connection(close_conn)
     return(output)
     
@@ -329,9 +354,29 @@ sql_server <- R6Class("sql_server", public = list(
   run = function(query, close_conn = TRUE) {
     
     self$connect()
-    output <- DBI::dbSendStatement(self$conn, query, immediate  = TRUE)
-    DBI::dbClearResult(output)
+  
+    # if databricks or mysql, split multi-statement query and run 1 at a time
+    if (self$server_type %in% c("databricks", "mysql")) {
+      
+      split_q <- split_sql_statement(query)
+      
+      for (i in seq_along(split_q)) {
+      
+        q <- split_q[i]
+        output <- DBI::dbSendStatement(self$conn, q, immediate  = TRUE)
+        dbClearResult(output)
+        
+      }
+      
+      
+      # otherwise, just run it
+    } else {
+      output <- DBI::dbSendStatement(self$conn, query, immediate  = TRUE)
+      dbClearResult(output)
+    }
+    
     self$close_connection(close_conn)
+    return(output)
     
   },
   
@@ -1188,7 +1233,7 @@ sql_server <- R6Class("sql_server", public = list(
       
       temp_table <- self$db_tables(database = "tempdb",
                                    close_conn = FALSE) %>%
-        filter(grepl(paste0(x, "_"), table_name) |
+        filter(grepl(paste0(x, "____"), table_name) |
                  x == table_name) %>%
         pull(table_name)
       
@@ -1227,7 +1272,6 @@ sql_server <- R6Class("sql_server", public = list(
   
   
   order_object_fields = function(database = self$database, object, close_conn = TRUE) {
-    
     
     if (!(self$server_type %in% c("mssql", "mysql"))) {
       stop( glue("method not applicable to connection type {self$server_type}"))

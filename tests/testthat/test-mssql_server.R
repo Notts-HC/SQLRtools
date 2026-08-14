@@ -133,6 +133,33 @@ testthat::test_that("mssql_server - get data", {
 
   # test matches the data uploaded
   testthat::expect_equal(rbind(test_data, test_data), db_data)
+  
+  # multi statment query
+  db_data_multi <- mssql_serv$run(
+    glue(
+      "
+      DROP TABLE IF EXISTS #SQLRtools_temp_2
+      DROP TABLE IF EXISTS #SQLRtools_temp_3
+      
+      SELECT count(*) as n
+      INTO #SQLRtools_temp_2
+      FROM {test_table_name}
+      
+      SELECT *
+      INTO #SQLRtools_temp_3
+      FROM #SQLRtools_temp_2
+      
+      DROP TABLE #SQLRtools_temp_2
+      "),
+    close_conn = FALSE) 
+  
+  db_data_multi_count <- mssql_serv$get(
+    "SELECT * FROM #SQLRtools_temp_3",
+    close_conn = FALSE
+  )
+  
+  expect_true(nrow(db_data_multi_count) == 1)
+  expect_true(db_data_multi_count$n == nrow(db_data))
 
 })
 
@@ -141,7 +168,7 @@ testthat::test_that("mssql_server - get data", {
 testthat::test_that("mssql_server - run & order by fields", {
 
   # change the data type of column a to varchar(max)
-  mssql_serv$run(glue("ALTER TABLE {test_table_name}
+  alter_cols <- mssql_serv$run(glue("ALTER TABLE {test_table_name}
                        ALTER COLUMN char_field_1 varchar(max);"),
                     close_conn = FALSE)
 

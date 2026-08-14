@@ -336,3 +336,226 @@ upload_to_databricks <- function(
   
 }
 
+
+#' Get position of character in string
+#' 
+#' Function works out if character x is between character y and z within a 
+#' string. Returns the positions of x values in the string that are between
+#' y and z. For example, used to identify where a ; is in between speech marks 
+#' within SQL or given text is in an annotation. 
+#' 
+#' @param x character to work out positions of. Quoted string, no default. 
+#' @param y character to check that preceeds x. Quoted string, no default. 
+#' @param z character to check that follows x. Quoted string, no default. 
+#' @param string string to check the positions of x in. Quoted string, no 
+#' default.
+
+chr_between <- function(x, y, z, string) {
+  
+  #x <- "begin"
+  #y <- "--"
+  #z <- "\n"
+  #string <- glue("
+  #  -- this is some annotation 
+  #  -- to replicate comments in SQL
+  #  --begin here
+  #  DROP TABLE my_table
+  #  BEGIN
+  #  Some coode here
+  #  -- make it odd --"
+  #)
+  
+  #x = "begin"
+  #y = "--"
+  #z = "\n"
+  #string = query
+  
+  x <- tolower(x)
+  y <- tolower(y)
+  z <- tolower(z)
+  
+  string <- as.character(string) |>  tolower()
+  
+  # positions of all ;'s
+  x_pos <- gregexpr(x, string)[[1]]
+  
+  # positions of single quotes
+  y_pos <- gregexpr(y, string)[[1]]
+  z_pos <- gregexpr(z, string)[[1]]
+  
+  ranges <- rbind(
+    data.frame(val = "y", pos = y_pos),
+    data.frame(val = "z", pos = z_pos)
+    ) |> 
+    filter(pos != -1) |> 
+    arrange(pos) |> 
+    mutate(
+      prev_val = lag(val),
+      next_val = lead(val)
+    ) |> 
+    filter(
+      (val == "y" & is.na(prev_val)) |
+        (val == "z" & prev_val == "y") |
+        (val == "y" & next_val == "z") |
+        (val == "y" & is.na(next_val))
+    )
+  
+  # if odd number, suggests left open
+  if (TRUE %in% is.na(ranges$next_val) & nrow(ranges) %% 2 != 0) {
+    ranges <- ranges |> 
+      mutate(
+        next_val = case_when(
+          is.na(next_val) ~ "z",
+          TRUE ~ next_val
+        )
+      ) |> 
+      rbind(
+        data.frame(
+          val = "z",
+          pos = nchar(string) + 1,
+          prev_val = "y", 
+          next_val = NA
+        )
+      )
+  }
+  
+  # Build y-z ranges
+  ranges <- ranges |>
+    select(-prev_val, -next_val) |> 
+    mutate(row_id = floor(1-row_number()/2)) |> 
+    tidyr::pivot_wider(names_from = val, values_from = pos)
+  
+  if (nrow(ranges) == 0) {
+    
+    output <- data.frame(
+      pos = as.integer(x_pos),
+      within_yz = NA
+    ) 
+    
+  } else {
+
+    # Check whether each x falls inside a quoted region
+    x_in_yz <- sapply(x_pos, function(pos) {
+      any(pos > ranges$y & pos < ranges$z)
+    })
+    
+    output <- data.frame(
+      pos = as.integer(x_pos),
+      within_yz = x_in_yz
+    ) 
+    
+    
+  }
+  
+  return(output)
+  
+}
+
+
+#' Split SQL query
+#' 
+#' Take SQL script and splits it into the separate statements using ";". Note, 
+#' this is only needed for databricks when multi-statement SQL scripts, 
+#' separated by ";" run in SQL files but not when run from DBI::dbGetQuery
+#' or DBI::dbSendStatement
+#' 
+#' @param query SQL query, quoted string, no default. 
+
+split_sql_statement <- function(query) {
+  
+  if (grepl("split-query-str-here", query)) {
+    stop("Query already contains 'split-query-str-here'")
+  }
+  
+  # check not using BEGIN in query
+  begin_sql <- chr_between(
+    x = "begin", 
+    y = "--", 
+    z = "\n", 
+    string = query) |> 
+    left_join(
+      chr_between(
+        x = "begin",
+        y = "/\\*", 
+        z = "\\*/", 
+        string = query
+        ),
+      by = "pos"
+    ) |> 
+    filter(within_yz.x == FALSE & within_yz.y == FALSE)
+  
+  if (nrow(begin_sql) > 0) {
+    stop("looks like query uses BEGIN, this is not supported")
+  }
+  
+  # remove any ; values within annotations
+  sc_annotation <- rbind(
+    chr_between(x = ";", y = "--", z = "\n", string = query),
+    chr_between(x = ";", y = "/\\*", z = "\\*/", string = query)
+    )|> 
+    filter(within_yz == TRUE) |> 
+    unique()
+  
+  for (pos in sc_annotation$pos) {
+    
+    query <- paste0(
+      substr(query, 1, pos - 1),
+      " ",
+      substr(query, pos + 1, nchar(query))
+    )
+    
+  }
+
+  # positions of all ;'s
+  x_pos <- gregexpr(";", query)[[1]]
+  
+  # positions of single quotes
+  quote_pos <- gregexpr("'", query)[[1]]
+  
+  # if odd number error - suggests SQL is wrong
+  if (length(quote_pos) %% 2 != 0) {
+    
+    if(!(length(quote_pos) == 1 & quote_pos[1] == -1)) {
+      
+      stop("Looks like code has unclosed ' in it")
+      
+    }
+  }
+  
+  # Build quote ranges
+  quote_ranges <- matrix(quote_pos, ncol = 2, byrow = TRUE)
+  
+  # Check whether each x falls inside a quoted region
+  in_quotes <- sapply(x_pos, function(pos) {
+    any(pos > quote_ranges[, 1] & pos < quote_ranges[, 2])
+  })
+  
+  split_positions <- data.frame(
+    pos = as.integer(x_pos),
+    in_q = in_quotes
+  ) |> 
+    filter(in_q == FALSE & pos != -1)
+  
+  ori_length <- nchar(query)
+  
+  for (pos in split_positions$pos) {
+    
+    #pos <- split_positions$pos[2]
+    
+    new_str_length <- nchar(query)
+    
+    diff <- new_str_length - ori_length
+    
+    query <- paste0(
+      substr(query, 1, pos - 1 + diff),
+      " split-query-str-here ",
+      substr(query, pos + 1 + diff, nchar(query))
+    )
+    
+  }
+  
+  return(strsplit(query, " split-query-str-here ")[[1]])
+}
+
+
+
